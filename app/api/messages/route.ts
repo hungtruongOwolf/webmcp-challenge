@@ -1,79 +1,67 @@
 import { NextResponse } from "next/server";
 
-import { pusherServer } from "@/app/libs/pusher";
-import prisma from "@/app/libs/prismadb";
-import getCurrentUser from "@/app/actions/get-current-user";
+import { createClient } from "@/app/libs/supabase/server";
+
+const toProfileDTO = (p: any) =>
+  p && {
+    id: p.id,
+    name: p.name,
+    email: p.email,
+    image: p.image,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+  };
+
+const toMessageDTO = (m: any) => ({
+  id: m.id,
+  body: m.body,
+  image: m.image,
+  createdAt: m.created_at,
+  senderId: m.sender_id,
+  conversationId: m.conversation_id,
+  sender: toProfileDTO(m.sender),
+  seen: (m.seen ?? []).map(toProfileDTO),
+});
 
 export async function POST(req: Request) {
   try {
-    const currentUser = await getCurrentUser();
-    const body = await req.json();
-    const { message, image, conversationId } = body;
+    const supabase = await createClient();
 
-    if (!currentUser?.id || !currentUser?.email)
-      return new NextResponse("Unauthorized.", { status: 401 });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const newMessage = await prisma.message.create({
-      data: {
-        body: message,
-        image,
-        conversation: {
-          connect: {
-            id: conversationId,
-          },
-        },
-        sender: {
-          connect: {
-            id: currentUser.id,
-          },
-        },
-        seen: {
-          connect: {
-            id: currentUser.id,
-          },
-        },
+    if (!user) return new NextResponse("Unauthorized.", { status: 401 });
+
+    const { message, image, conversationId } = await req.json();
+
+    const { data: messageId, error: rpcError } = await supabase.rpc(
+      "create_message",
+      {
+        p_conversation_id: conversationId,
+        p_body: message,
+        p_image: image,
       },
-      include: {
-        seen: true,
-        sender: true,
-      },
+    );
+
+    if (rpcError) throw rpcError;
+
+    const { data: full, error: fetchError } = await supabase
+      .from("messages")
+      .select(
+        `*, sender:profiles!messages_sender_id_fkey (*), seen:message_seen ( profile:profiles!message_seen_user_id_fkey (*) )`,
+      )
+      .eq("id", messageId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const dto = toMessageDTO({
+      ...full,
+      seen: (full.seen ?? []).map((s: any) => s.profile),
     });
 
-    const updatedConversation = await prisma.conversation.update({
-      where: {
-        id: conversationId,
-      },
-      data: {
-        lastMessageAt: new Date(),
-        messages: {
-          connect: {
-            id: newMessage.id,
-          },
-        },
-      },
-      include: {
-        users: true,
-        messages: {
-          include: {
-            seen: true,
-          },
-        },
-      },
-    });
-
-    await pusherServer.trigger(conversationId, "messages:new", newMessage);
-
-    const lastMessage =
-      updatedConversation.messages[updatedConversation.messages.length - 1];
-
-    updatedConversation.users.map((user) => {
-      pusherServer.trigger(user.email!, "conversation:update", {
-        id: conversationId,
-        messages: [lastMessage],
-      });
-    });
-
-    return NextResponse.json(newMessage);
+    return NextResponse.json(dto);
   } catch (error: unknown) {
     console.error("ERROR_MESSAGES:", error);
     return new NextResponse("Internal Server Error.", { status: 500 });

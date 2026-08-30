@@ -1,46 +1,37 @@
-import { useEffect, useState } from "react";
-import type { Channel, Members } from "pusher-js";
+import { useEffect } from "react";
+import type { RealtimePresenceState } from "@supabase/supabase-js";
 
 import useActiveList from "@/app/hooks/use-active-list";
-import { pusherClient } from "@/app/libs/pusher";
+import { useCurrentUser } from "@/app/context/current-user-context";
+import { createClient } from "@/app/libs/supabase/client";
 
 const useActiveChannel = () => {
-  const { set, add, remove } = useActiveList();
-  const [activeChannel, setActiveChannel] = useState<Channel | null>(null);
+  const { set } = useActiveList();
+  const currentUser = useCurrentUser();
 
   useEffect(() => {
-    let channel = activeChannel;
+    if (!currentUser?.id) return;
 
-    if (!channel) {
-      channel = pusherClient.subscribe("presence-messenger");
-      setActiveChannel(channel);
-    }
-
-    channel.bind("pusher:subscription_succeeded", (members: Members) => {
-      const initialMembers: string[] = [];
-
-      members.each((member: Record<string, any>) =>
-        initialMembers.push(member.id)
-      );
-
-      set(initialMembers);
+    const supabase = createClient();
+    const channel = supabase.channel("online", {
+      config: { presence: { key: currentUser.id } },
     });
 
-    channel.bind("pusher:member_added", (member: Record<string, any>) => {
-      add(member.id);
-    });
-
-    channel.bind("pusher:member_removed", (member: Record<string, any>) => {
-      remove(member.id);
-    });
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state: RealtimePresenceState = channel.presenceState();
+        set(Object.keys(state));
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
 
     return () => {
-      if (activeChannel) {
-        pusherClient.unsubscribe("presence-messenger");
-        setActiveChannel(null);
-      }
+      supabase.removeChannel(channel);
     };
-  }, [activeChannel, set, add, remove]);
+  }, [currentUser?.id, set]);
 };
 
 export default useActiveChannel;
