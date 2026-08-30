@@ -1,26 +1,24 @@
-import prisma from "@/app/libs/prismadb";
+import { createClient } from "@/app/libs/supabase/server";
 
-import getSession from "@/app/actions/get-session";
-
+/** Everyone except you. The "People" page. */
 const getUsers = async () => {
-  const session = await getSession();
-
-  if (!session?.user?.email) return [];
-
   try {
-    const users = await prisma.user.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-      where: {
-        NOT: {
-          email: session.user.email,
-        },
-      },
-    });
+    const supabase = await createClient();
 
-    return users;
-  } catch (error: unknown) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return [];
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .neq("id", user.id)
+      .order("created_at", { ascending: false });
+
+    return data ?? [];
+  } catch {
     return [];
   }
 };

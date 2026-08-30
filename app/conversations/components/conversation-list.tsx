@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useCurrentUser } from "@/app/context/current-user-context";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
 import { find } from "lodash";
-import type { User } from "@prisma/client";
+import type { User } from "@/app/types";
 import { MdOutlineGroupAdd } from "react-icons/md";
 
 import type { FullConversationType } from "@/app/types";
@@ -26,13 +26,13 @@ const ConversationList: React.FC<ConversationListProps> = ({
   const [conversations, setConversation] = useState(initialConversations);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const session = useSession();
+  const currentUser = useCurrentUser();
   const router = useRouter();
   const { conversationId, isOpen } = useConversation();
 
   const pusherKey = useMemo(() => {
-    return session.data?.user?.email;
-  }, [session.data?.user?.email]);
+    return currentUser?.email;
+  }, [currentUser?.email]);
 
   useEffect(() => {
     if (!pusherKey) return;

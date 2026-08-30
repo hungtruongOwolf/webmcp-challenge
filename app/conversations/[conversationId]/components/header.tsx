@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { Conversation, User } from "@prisma/client";
+import type { Conversation, User } from "@/app/types";
 import { HiChevronLeft, HiEllipsisHorizontal } from "react-icons/hi2";
 
 import useOtherUser from "@/app/hooks/use-other-user";
@@ -24,7 +24,7 @@ const Header: React.FC<HeaderProps> = ({ conversation }) => {
   const isActive = members.indexOf(otherUser?.email!) === -1;
 
   const statusText = useMemo(() => {
-    if (conversation.isGroup) return `${conversation.users.length} members`;
+    if (conversation.is_group) return `${conversation.users.length} members`;
 
     return isActive ? "Online" : "Offline";
   }, [conversation, isActive]);
@@ -44,7 +44,7 @@ const Header: React.FC<HeaderProps> = ({ conversation }) => {
           >
             <HiChevronLeft size={32} />
           </Link>
-          {conversation.isGroup ? (
+          {conversation.is_group ? (
             <AvatarGroup users={conversation.users} />
           ) : (
             <Avatar user={otherUser} />
