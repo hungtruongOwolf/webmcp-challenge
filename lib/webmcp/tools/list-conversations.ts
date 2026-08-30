@@ -7,7 +7,8 @@ const MAX_LIMIT = 30;
 export const listConversations: ToolFactory = (ctx) => ({
   name: "list_conversations",
   description:
-    "List your conversations, newest activity first, with a title and a preview of the last message.",
+    "List your conversations, newest activity first, with a title, last-message preview, and " +
+    "whether it has unread messages. Use this to answer 'did anyone message me'.",
   inputSchema: {
     type: "object",
     properties: {
@@ -30,7 +31,7 @@ export const listConversations: ToolFactory = (ctx) => ({
       .select(
         `id, name, is_group, last_message_at,
          members:conversation_members ( profile:profiles (*) ),
-         messages ( body, image, created_at, sender_id )`
+         messages ( id, body, image, created_at, sender_id, seen:message_seen ( user_id ) )`
       )
       .order("last_message_at", { ascending: false })
       .limit(limit);
@@ -51,7 +52,14 @@ export const listConversations: ToolFactory = (ctx) => ({
       const preview = last ? (last.image ? "[image]" : last.body || "") : "Started a conversation";
       const when = last ? relativeTime(last.created_at) : relativeTime(c.last_message_at);
 
-      return `${i + 1}. "${title}" (id: ${c.id}) -- ${preview} -- ${when}`;
+      const unreadCount = msgs.filter(
+        (m: any) =>
+          m.sender_id !== ctx.currentUser.id &&
+          !(m.seen ?? []).some((s: any) => s.user_id === ctx.currentUser.id)
+      ).length;
+      const unread = unreadCount > 0 ? ` -- ${unreadCount} unread` : "";
+
+      return `${i + 1}. "${title}" (id: ${c.id}) -- ${preview} -- ${when}${unread}`;
     });
 
     return textResult(lines.join("\n"));
