@@ -1,19 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { find } from "lodash";
+import { useMemo, useState } from "react";
 import { HiUserPlus, HiPlus, HiMagnifyingGlass } from "react-icons/hi2";
 
-import type { FullConversationType } from "@/app/types";
 import type { User } from "@/app/types";
 import useConversation from "@/app/hooks/use-conversation";
-import { useCurrentUser } from "@/app/context/current-user-context";
-import { createClient } from "@/app/libs/supabase/client";
+import { useConversationsList } from "@/app/context/conversations-context";
 import ConversationBox from "@/app/conversations/components/conversation-box";
 
 type ConversationListProps = {
-  initialConversations: FullConversationType[];
   users: User[];
   showList: boolean;
   onOpenDirectory: () => void;
@@ -21,76 +16,14 @@ type ConversationListProps = {
 };
 
 const ConversationList: React.FC<ConversationListProps> = ({
-  initialConversations,
   showList,
   onOpenDirectory,
   onOpenNewGroup,
 }) => {
-  const [conversations, setConversations] = useState(initialConversations);
+  const { conversations } = useConversationsList();
   const [query, setQuery] = useState("");
 
-  const currentUser = useCurrentUser();
-  const router = useRouter();
   const { conversationId, isOpen } = useConversation();
-
-  useEffect(() => {
-    if (!currentUser?.id) return;
-
-    const supabase = createClient();
-    const channel = supabase.channel(`user:${currentUser.id}`, {
-      config: { private: true },
-    });
-
-    const fetchAndUpsertConversation = async (id: string) => {
-      const { data } = await supabase
-        .from("conversations")
-        .select(
-          `id, name, is_group, created_at, last_message_at,
-           members:conversation_members ( profile:profiles (*) ),
-           messages ( *, sender:profiles!messages_sender_id_fkey (*), seen:message_seen ( profile:profiles!message_seen_user_id_fkey (*) ) )`
-        )
-        .eq("id", id)
-        .maybeSingle();
-
-      if (!data) return;
-
-      const full = {
-        ...data,
-        users: (data.members ?? []).map((m: any) => m.profile),
-        messages: (data.messages ?? [])
-          .sort((a: any, b: any) => a.created_at.localeCompare(b.created_at))
-          .map((m: any) => ({ ...m, seen: (m.seen ?? []).map((s: any) => s.profile) })),
-      } as unknown as FullConversationType;
-
-      setConversations((current) => {
-        if (find(current, { id: full.id }))
-          return current.map((c) => (c.id === full.id ? full : c));
-
-        return [full, ...current];
-      });
-    };
-
-    channel
-      .on("broadcast", { event: "*" }, ({ payload }) => {
-        const table = payload?.table;
-
-        if (table === "conversation_members") {
-          fetchAndUpsertConversation(payload.record.conversation_id);
-        } else if (table === "messages") {
-          fetchAndUpsertConversation(payload.record.conversation_id);
-        } else if (table === "conversations") {
-          const id = payload.old_record?.id ?? payload.record?.id;
-
-          setConversations((current) => current.filter((c) => c.id !== id));
-          if (conversationId === id) router.push("/conversations");
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser?.id, conversationId, router]);
 
   const filtered = useMemo(() => {
     const sorted = [...conversations].sort(

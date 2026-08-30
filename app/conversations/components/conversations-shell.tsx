@@ -9,6 +9,7 @@ import type { FullConversationType } from "@/app/types";
 import useConversation from "@/app/hooks/use-conversation";
 import { UiSettingsProvider, useUiSettings } from "@/app/context/ui-settings-context";
 import { OverlayProvider } from "@/app/context/overlay-context";
+import { ConversationsProvider } from "@/app/context/conversations-context";
 import { hueFromName } from "@/app/libs/avatar-color";
 import RailNav from "./rail-nav";
 import ConversationList from "./conversation-list";
@@ -31,10 +32,9 @@ type ConversationsShellProps = PropsWithChildren<{
 
 function ShellInner({
   currentUser,
-  initialConversations,
   users,
   children,
-}: ConversationsShellProps) {
+}: Omit<ConversationsShellProps, "initialConversations">) {
   const { theme, glass, density } = useUiSettings();
   const { isOpen, conversationId } = useConversation();
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -74,7 +74,6 @@ function ShellInner({
           />
 
           <ConversationList
-            initialConversations={initialConversations}
             users={users}
             showList
             onOpenDirectory={() => setOverlay("directory")}
@@ -107,10 +106,15 @@ function ShellInner({
   );
 }
 
-const ConversationsShell: React.FC<ConversationsShellProps> = (props) => {
+const ConversationsShell: React.FC<ConversationsShellProps> = ({
+  initialConversations,
+  ...props
+}) => {
   return (
     <UiSettingsProvider>
-      <ShellInner {...props} />
+      <ConversationsProvider initialConversations={initialConversations}>
+        <ShellInner {...props} />
+      </ConversationsProvider>
     </UiSettingsProvider>
   );
 };
