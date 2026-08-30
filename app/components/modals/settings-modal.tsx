@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { useState } from "react";
-import type { User } from "@prisma/client";
+import type { User } from "@/app/types";
 import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import Image from "next/image";
@@ -13,6 +13,7 @@ import type { FieldValues, SubmitHandler } from "react-hook-form";
 import Modal from "@/app/components/modals/modal";
 import Input from "@/app/components/inputs/input";
 import Button from "@/app/components/button";
+import PasskeyManager from "@/app/components/passkey-manager";
 
 type SettingsModalProps = {
   isOpen?: boolean;
@@ -122,6 +123,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
           </div>
+
+          <PasskeyManager />
 
           <div className="mt-6 flex items-center justify-end gap-x-6">
             <Button

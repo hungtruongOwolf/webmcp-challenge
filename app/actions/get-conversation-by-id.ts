@@ -1,23 +1,40 @@
-import prisma from "@/app/libs/prismadb";
-import getCurrentUser from "@/app/actions/get-current-user";
+import { createClient } from "@/app/libs/supabase/server";
 
+/**
+ * One conversation, or null.
+ *
+ * The membership check that this function was missing before is now the RLS
+ * policy: a non-member gets zero rows back, so the caller renders the empty
+ * state instead of someone else's chat.
+ */
 const getConversationById = async (conversationId: string) => {
   try {
-    const currentUser = await getCurrentUser();
+    const supabase = await createClient();
 
-    if (!currentUser?.email) return null;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const conversation = await prisma.conversation.findUnique({
-      where: {
-        id: conversationId,
-      },
-      include: {
-        users: true,
-      },
-    });
+    if (!user) return null;
 
-    return conversation;
-  } catch (error: unknown) {
+    const { data, error } = await supabase
+      .from("conversations")
+      .select(
+        `id, name, is_group, created_at, last_message_at,
+         members:conversation_members ( profile:profiles (*) )`
+      )
+      .eq("id", conversationId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    const { members, ...conversation } = data as any;
+
+    return {
+      ...conversation,
+      users: (members ?? []).map((m: any) => m.profile),
+    };
+  } catch {
     return null;
   }
 };

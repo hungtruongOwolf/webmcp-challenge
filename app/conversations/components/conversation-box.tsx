@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import type { Conversation, Message, User } from "@prisma/client";
+import type { Conversation, Message, User } from "@/app/types";
 import { format } from "date-fns";
-import { useSession } from "next-auth/react";
+import { useCurrentUser } from "@/app/context/current-user-context";
 import clsx from "clsx";
 
 import useOtherUser from "@/app/hooks/use-other-user";
@@ -22,7 +22,7 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
   selected,
 }) => {
   const otherUser = useOtherUser(data);
-  const session = useSession();
+  const currentUser = useCurrentUser();
   const router = useRouter();
 
   const conversationRef = useRef<HTMLDivElement | null>(null);
@@ -38,8 +38,8 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
   }, [data.messages]);
 
   const userEmail = useMemo(() => {
-    return session.data?.user?.email;
-  }, [session.data?.user?.email]);
+    return currentUser?.email;
+  }, [currentUser?.email]);
 
   const hasSeen = useMemo(() => {
     if (!lastMessage) return false;
@@ -85,7 +85,7 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
         selected ? "bg-neutral-100" : "bg-white"
       )}
     >
-      {data?.isGroup ? (
+      {data?.is_group ? (
         <AvatarGroup users={data.users} />
       ) : (
         <Avatar user={otherUser} />
@@ -96,13 +96,13 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
             <p className="text-md font-medium text-gray-900">
               {data.name || otherUser.name}
             </p>
-            {lastMessage?.createdAt && (
+            {lastMessage?.created_at && (
               <time
-                dateTime={format(new Date(lastMessage.createdAt), "p")}
+                dateTime={format(new Date(lastMessage.created_at), "p")}
                 className="text-xs text-gray-400 font-light"
                 suppressHydrationWarning
               >
-                {format(new Date(lastMessage.createdAt), "p")}
+                {format(new Date(lastMessage.created_at), "p")}
               </time>
             )}
           </div>

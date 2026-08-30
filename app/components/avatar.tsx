@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { User } from "@prisma/client";
+import type { User } from "@/app/types";
 
 import useActiveList from "@/app/hooks/use-active-list";
 

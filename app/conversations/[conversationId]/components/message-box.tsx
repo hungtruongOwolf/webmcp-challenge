@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useState } from "react";
 import Image from "next/image";
 import { format } from "date-fns";
-import { useSession } from "next-auth/react";
+import { useCurrentUser } from "@/app/context/current-user-context";
 
 import type { FullMessageType } from "@/app/types";
 import Avatar from "@/app/components/avatar";
@@ -16,10 +16,10 @@ type MessageBoxProps = {
 };
 
 const MessageBox: React.FC<MessageBoxProps> = ({ data, isLast }) => {
-  const session = useSession();
+  const currentUser = useCurrentUser();
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
-  const isOwn = session?.data?.user?.email === data?.sender?.email;
+  const isOwn = currentUser?.email === data?.sender?.email;
   const seenList = (data.seen || [])
     .filter((user) => user.email !== data?.sender?.email)
     .map((user) => user.name)
@@ -45,11 +45,11 @@ const MessageBox: React.FC<MessageBoxProps> = ({ data, isLast }) => {
         <div className="flex items-center gap-1">
           <p className="text-sm text-gray-500">{data.sender.name}</p>
           <time
-            dateTime={format(new Date(data.createdAt), "p")}
+            dateTime={format(new Date(data.created_at), "p")}
             className="text-xs text-gray-400"
             suppressHydrationWarning
           >
-            {format(new Date(data.createdAt), "p")}
+            {format(new Date(data.created_at), "p")}
           </time>
         </div>
 
