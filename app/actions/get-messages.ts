@@ -1,22 +1,30 @@
-import prisma from "@/app/libs/prismadb";
+import { createClient } from "@/app/libs/supabase/server";
+import type { FullMessageType } from "@/app/types";
 
+/**
+ * Messages in a conversation, oldest first.
+ *
+ * Previously this had no authorization check at all. It still has none --
+ * it does not need one, because the RLS policy on messages returns nothing
+ * for a conversation you are not a member of.
+ */
 const getMessages = async (conversationId: string) => {
   try {
-    const messages = await prisma.message.findMany({
-      where: {
-        conversationId,
-      },
-      include: {
-        sender: true,
-        seen: true,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    });
+    const supabase = await createClient();
 
-    return messages;
-  } catch (error: unknown) {
+    const { data, error } = await supabase
+      .from("messages")
+      .select(`*, sender:profiles (*), seen:message_seen ( profile:profiles (*) )`)
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+
+    return (data ?? []).map((message: any) => ({
+      ...message,
+      seen: (message.seen ?? []).map((s: any) => s.profile),
+    })) as unknown as FullMessageType[];
+  } catch {
     return [];
   }
 };

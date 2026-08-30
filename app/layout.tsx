@@ -4,7 +4,8 @@ import { Inter } from "next/font/google";
 
 import ActiveStatus from "@/app/components/active-status";
 import ToasterContext from "@/app/context/toaster-context";
-import AuthContext from "@/app/context/auth-context";
+import { CurrentUserProvider } from "@/app/context/current-user-context";
+import { createClient } from "@/app/libs/supabase/server";
 import { siteConfig } from "@/app/config/site";
 
 import "./globals.css";
@@ -17,11 +18,16 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = siteConfig;
 
-export default function RootLayout({ children }: PropsWithChildren) {
+export default async function RootLayout({ children }: PropsWithChildren) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthContext>
+        <CurrentUserProvider initialUser={user}>
           {/* react hot toast */}
           <aside>
             <ToasterContext />
@@ -29,7 +35,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
 
           <ActiveStatus />
           {children}
-        </AuthContext>
+        </CurrentUserProvider>
       </body>
     </html>
   );

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
-import type { User } from "@prisma/client";
+import type { User } from "@/app/types";
 import type { FieldValues, SubmitHandler } from "react-hook-form";
 
 import Modal from "@/app/components/modals/modal";

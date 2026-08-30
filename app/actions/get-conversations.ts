@@ -1,34 +1,46 @@
-import prisma from "@/app/libs/prismadb";
-import getCurrentUser from "@/app/actions/get-current-user";
+import { createClient } from "@/app/libs/supabase/server";
+import type { FullConversationType } from "@/app/types";
 
+/**
+ * Every conversation you belong to, newest activity first.
+ *
+ * There is no "where am I a member" clause here on purpose -- the RLS policy
+ * on conversations already restricts the rows to ones you belong to. The
+ * join tables are flattened back into the users[] / messages[] shape the
+ * component tree expects.
+ */
 const getConversations = async () => {
-  const currentUser = await getCurrentUser();
-
-  if (!currentUser?.id) return [];
-
   try {
-    const conversations = await prisma.conversation.findMany({
-      orderBy: {
-        lastMessageAt: "desc",
-      },
-      where: {
-        userIds: {
-          has: currentUser.id,
-        },
-      },
-      include: {
-        users: true,
-        messages: {
-          include: {
-            sender: true,
-            seen: true,
-          },
-        },
-      },
-    });
+    const supabase = await createClient();
 
-    return conversations;
-  } catch (error: unknown) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from("conversations")
+      .select(
+        `id, name, is_group, created_at, last_message_at,
+         members:conversation_members ( profile:profiles (*) ),
+         messages ( *, sender:profiles (*), seen:message_seen ( profile:profiles (*) ) )`
+      )
+      .order("last_message_at", { ascending: false });
+
+    if (error) throw error;
+
+    return (data ?? []).map((conversation: any) => ({
+      ...conversation,
+      users: (conversation.members ?? []).map((m: any) => m.profile),
+      messages: (conversation.messages ?? [])
+        .sort((a: any, b: any) => a.created_at.localeCompare(b.created_at))
+        .map((message: any) => ({
+          ...message,
+          seen: (message.seen ?? []).map((s: any) => s.profile),
+        })),
+    })) as unknown as FullConversationType[];
+  } catch {
     return [];
   }
 };
