@@ -71,6 +71,42 @@ export type Database = {
         }
         Relationships: []
       }
+      drafts: {
+        Row: {
+          body: string
+          conversation_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drafts_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drafts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_seen: {
         Row: {
           message_id: string
@@ -180,6 +216,10 @@ export type Database = {
     Functions: {
       create_conversation: {
         Args: { p_is_group?: boolean; p_member_ids: string[]; p_name?: string }
+        Returns: string
+      }
+      create_message: {
+        Args: { p_body?: string; p_conversation_id: string; p_image?: string }
         Returns: string
       }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }

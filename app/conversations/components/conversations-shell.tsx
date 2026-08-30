@@ -10,7 +10,11 @@ import useConversation from "@/app/hooks/use-conversation";
 import { UiSettingsProvider, useUiSettings } from "@/app/context/ui-settings-context";
 import { OverlayProvider } from "@/app/context/overlay-context";
 import { ConversationsProvider } from "@/app/context/conversations-context";
+import { WebmcpActivityProvider } from "@/app/context/webmcp-activity-context";
+import { ConfirmBridgeProvider } from "@/app/context/confirm-bridge-context";
 import { hueFromName } from "@/app/libs/avatar-color";
+import WebmcpTools from "@/app/components/webmcp-tools";
+import ActivityPanel from "@/app/components/activity-panel";
 import RailNav from "./rail-nav";
 import ConversationList from "./conversation-list";
 import DirectoryModal from "./directory-modal";
@@ -22,7 +26,7 @@ const beVietnamPro = Be_Vietnam_Pro({
   weight: ["400", "500", "600"],
 });
 
-type Overlay = "directory" | "newGroup" | "profile" | null;
+type Overlay = "directory" | "newGroup" | "profile" | "activity" | null;
 
 type ConversationsShellProps = PropsWithChildren<{
   currentUser: User;
@@ -71,6 +75,7 @@ function ShellInner({
             showRail
             onOpenDirectory={() => setOverlay("directory")}
             onOpenProfile={() => setOverlay("profile")}
+            onOpenActivity={() => setOverlay("activity")}
           />
 
           <ConversationList
@@ -101,6 +106,9 @@ function ShellInner({
           onClose={() => setOverlay(null)}
           currentUser={currentUser}
         />
+        <ActivityPanel isOpen={overlay === "activity"} onClose={() => setOverlay(null)} />
+
+        <WebmcpTools />
       </div>
     </OverlayProvider>
   );
@@ -113,7 +121,11 @@ const ConversationsShell: React.FC<ConversationsShellProps> = ({
   return (
     <UiSettingsProvider>
       <ConversationsProvider initialConversations={initialConversations}>
-        <ShellInner {...props} />
+        <WebmcpActivityProvider>
+          <ConfirmBridgeProvider>
+            <ShellInner {...props} />
+          </ConfirmBridgeProvider>
+        </WebmcpActivityProvider>
       </ConversationsProvider>
     </UiSettingsProvider>
   );

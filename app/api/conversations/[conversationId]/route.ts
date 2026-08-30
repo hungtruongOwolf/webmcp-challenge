@@ -12,6 +12,8 @@ export async function DELETE(
 ) {
   try {
     const { conversationId } = await params;
+    if (!conversationId) return new NextResponse("Invalid Id.", { status: 400 });
+
     const supabase = await createClient();
 
     const {

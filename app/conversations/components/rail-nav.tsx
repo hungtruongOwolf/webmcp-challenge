@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import type { User } from "@/app/types";
-import { HiChatBubbleLeftRight, HiUserGroup, HiMoon, HiSun } from "react-icons/hi2";
+import {
+  HiChatBubbleLeftRight,
+  HiUserGroup,
+  HiMoon,
+  HiSun,
+  HiWrenchScrewdriver,
+} from "react-icons/hi2";
 
 import useConversation from "@/app/hooks/use-conversation";
 import { useUiSettings } from "@/app/context/ui-settings-context";
@@ -13,6 +19,7 @@ type RailNavProps = {
   showRail: boolean;
   onOpenDirectory: () => void;
   onOpenProfile: () => void;
+  onOpenActivity: () => void;
 };
 
 const RailNav: React.FC<RailNavProps> = ({
@@ -20,6 +27,7 @@ const RailNav: React.FC<RailNavProps> = ({
   showRail,
   onOpenDirectory,
   onOpenProfile,
+  onOpenActivity,
 }) => {
   const router = useRouter();
   const { isOpen } = useConversation();
@@ -71,6 +79,15 @@ const RailNav: React.FC<RailNavProps> = ({
         <HiUserGroup size={21} />
       </button>
       <div style={{ flex: 1 }} />
+      <button
+        type="button"
+        aria-label="Tool activity"
+        onClick={onOpenActivity}
+        className="gm-icon-btn"
+        style={{ width: 44, height: 44 }}
+      >
+        <HiWrenchScrewdriver size={19} />
+      </button>
       <button
         type="button"
         aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
