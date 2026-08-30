@@ -4,29 +4,66 @@ import Image from "next/image";
 import type { User } from "@/app/types";
 
 import useActiveList from "@/app/hooks/use-active-list";
+import { useUiSettings } from "@/app/context/ui-settings-context";
+import { avatarColors, initialsFromName } from "@/app/libs/avatar-color";
 
 type AvatarProps = {
-  user: User;
+  user?: User | null;
+  size?: number;
+  showStatus?: boolean;
 };
 
-const Avatar: React.FC<AvatarProps> = ({ user }) => {
+const Avatar: React.FC<AvatarProps> = ({ user, size = 44, showStatus = true }) => {
   const { members } = useActiveList();
-  const isActive = members.indexOf(user?.email!) === -1;
+  const { theme } = useUiSettings();
+  const isActive = members.indexOf(user?.id!) !== -1;
+  const { bg, fg } = avatarColors(user?.name || user?.email || "?", theme === "dark");
 
   return (
-    <div className="relative">
-      <div className="relative inline-block rounded-full overflow-hidden h-9 w-9 md:h-11 md:w-11">
-        <Image
-          src={user?.image || "/images/placeholder.jpg"}
-          alt="user avatar"
-          fill
-        />
-      </div>
-      {isActive && (
+    <div style={{ position: "relative", flex: "none", width: size, height: size }}>
+      {user?.image ? (
+        <div
+          style={{
+            position: "relative",
+            width: size,
+            height: size,
+            borderRadius: 999,
+            overflow: "hidden",
+          }}
+        >
+          <Image src={user.image} alt={user?.name || "avatar"} fill sizes={`${size}px`} style={{ objectFit: "cover" }} />
+        </div>
+      ) : (
         <span
-          role="status"
-          className="absolute block rounded-full bg-green-500 ring-2 ring-white top-0 right-0 h-2 w-2 md:h-3 md:w-3"
           aria-hidden
+          style={{
+            width: size,
+            height: size,
+            borderRadius: 999,
+            background: bg,
+            color: fg,
+            fontSize: size * 0.33,
+            fontWeight: 600,
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          {initialsFromName(user?.name)}
+        </span>
+      )}
+      {showStatus && isActive && (
+        <span
+          aria-label="Online"
+          style={{
+            position: "absolute",
+            right: -1,
+            bottom: -1,
+            width: size * 0.3,
+            height: size * 0.3,
+            borderRadius: 999,
+            background: "var(--lagoon)",
+            boxShadow: "0 0 0 2.5px var(--s1)",
+          }}
         />
       )}
     </div>

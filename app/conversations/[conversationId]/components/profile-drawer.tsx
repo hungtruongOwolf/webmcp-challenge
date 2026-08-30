@@ -1,183 +1,322 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import { format } from "date-fns";
-import { Dialog, Transition } from "@headlessui/react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
+import toast from "react-hot-toast";
 import type { Conversation, User } from "@/app/types";
-import { IoClose, IoTrash } from "react-icons/io5";
+import { HiXMark, HiOutlineTrash } from "react-icons/hi2";
 
-import useOtherUser from "@/app/hooks/use-other-user";
+import type { FullMessageType } from "@/app/types";
 import useActiveList from "@/app/hooks/use-active-list";
-import AvatarGroup from "@/app/components/avatar-group";
+import { useUiSettings } from "@/app/context/ui-settings-context";
+import { useOverlay } from "@/app/context/overlay-context";
 import Avatar from "@/app/components/avatar";
-import ConfirmModal from "./confirm-modal";
+import ConfirmDialog from "@/app/components/modals/confirm-dialog";
 
 type ProfileDrawerProps = {
-  isOpen: boolean;
+  conversation: Conversation & { users: User[] };
+  messages: FullMessageType[];
+  tab: "media" | "people" | "settings" | null;
   onClose: () => void;
-  data: Conversation & {
-    users: User[];
-  };
+  onOpenImage: (src: string) => void;
 };
 
+const TABS = [
+  { key: "media", label: "Photos" },
+  { key: "people", label: "People" },
+  { key: "settings", label: "Settings" },
+] as const;
+
 const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
-  isOpen,
+  conversation,
+  messages,
+  tab,
   onClose,
-  data,
+  onOpenImage,
 }) => {
-  const otherUser = useOtherUser(data);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const router = useRouter();
   const { members } = useActiveList();
+  const { density, setDensity, glass, toggleGlass } = useUiSettings();
+  const { openProfile } = useOverlay();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState<"media" | "people" | "settings">(
+    tab || "media"
+  );
 
-  const isActive = members.indexOf(otherUser?.email!) === -1;
+  useEffect(() => {
+    if (tab) setActiveTab(tab);
+  }, [tab]);
 
-  const joinedDate = useMemo(() => {
-    return format(new Date(otherUser.created_at), "PP");
-  }, [otherUser.created_at]);
+  const media = useMemo(() => messages.filter((m) => !!m.image), [messages]);
 
-  const title = useMemo(() => {
-    return data.name || otherUser.name;
-  }, [data.name, otherUser.name]);
+  const onDelete = () => {
+    setDeleting(true);
 
-  const statusText = useMemo(() => {
-    if (data.is_group) {
-      return `${data.users.length} members`;
-    }
+    axios
+      .delete(`/api/conversations/${conversation.id}`)
+      .then(() => {
+        router.push("/conversations");
+      })
+      .catch(() => toast.error("Something went wrong."))
+      .finally(() => {
+        setDeleting(false);
+        setConfirmDelete(false);
+      });
+  };
 
-    return isActive ? "Online" : "Offline";
-  }, [data, isActive]);
+  if (!tab) return null;
+
+  const currentTab = activeTab;
 
   return (
     <>
-      <ConfirmModal
-        isOpen={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-      />
-      <Transition.Root show={isOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={onClose}>
-          <Transition.Child
-            as={Fragment}
-            enter="ease-ut duration-500"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in duration-500"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
+      <div onClick={onClose} style={{ position: "absolute", inset: 0, zIndex: 11, background: "var(--scrim)" }} />
+      <aside
+        aria-label="Chat details"
+        className="gm-glass1"
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          flex: "none",
+          width: "min(360px, 92vw)",
+          zIndex: 12,
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "var(--e2)",
+        }}
+      >
+        <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 4, padding: "12px 12px 8px" }}>
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              aria-pressed={currentTab === t.key}
+              onClick={() => setActiveTab(t.key)}
+              style={{
+                flex: 1,
+                height: 34,
+                border: "none",
+                borderRadius: 10,
+                background: currentTab === t.key ? "var(--sel)" : "transparent",
+                color: currentTab === t.key ? "var(--accent-t)" : "var(--t2)",
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-label="Close details"
+            onClick={onClose}
+            className="gm-icon-btn"
+            style={{ flex: "none", width: 34, height: 34 }}
           >
-            <div className="fixed inset-0 bg-black bg-opacity-40" aria-hidden />
-          </Transition.Child>
+            <HiXMark size={16} />
+          </button>
+        </div>
 
-          <div className="fixed inset-0 overflow-hidden">
-            <div className="absolute inset-0 overflow-hidden">
-              <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-                <Transition.Child
-                  as={Fragment}
-                  enter="transform transition ease-in-out duration-500"
-                  enterFrom="translate-x-full"
-                  enterTo="translate-x-0"
-                  leave="transform transition ease-in-out duration-500"
-                  leaveTo="translate-x-full"
-                >
-                  <Dialog.Panel className="pointer-events-auto w-screen max-w-md">
-                    <div className="flex h-full flex-col overflow-y-scroll bg-white py-6 shadow-xl">
-                      <div className="px-4 sm:px-6">
-                        <div className="flex items-start justify-end">
-                          <div className="ml-3 flex h-7 items-center">
-                            <button
-                              type="button"
-                              onClick={onClose}
-                              className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
-                            >
-                              <span className="sr-only">Close panel</span>
-                              <IoClose size={24} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 16px 20px" }}>
+          {currentTab === "media" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--t3)" }}>
+                {media.length} photo{media.length === 1 ? "" : "s"}
+              </span>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                {media.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onOpenImage(m.image!)}
+                    aria-label="Open photo"
+                    style={{
+                      padding: 0,
+                      border: "none",
+                      borderRadius: 6,
+                      overflow: "hidden",
+                      aspectRatio: "1",
+                      cursor: "zoom-in",
+                      boxShadow: "0 0 0 0.5px var(--hair)",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={m.image!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+              {media.length === 0 && (
+                <div style={{ padding: "24px 0", display: "flex", flexDirection: "column", gap: 6, textAlign: "center" }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 600 }}>No photos yet</span>
+                  <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--t2)" }}>
+                    Photos shared in this chat collect here.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
-                      <div className="relative mt-6 flex-1 px-4 sm:px-6">
-                        <div className="flex flex-col items-center">
-                          <div className="mb-2">
-                            {data.is_group ? (
-                              <AvatarGroup users={data.users} />
-                            ) : (
-                              <Avatar user={otherUser} />
-                            )}
-                          </div>
+          {currentTab === "people" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--t3)" }}>
+                {conversation.users.length} member{conversation.users.length === 1 ? "" : "s"}
+              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                {conversation.users.map((p) => {
+                  const online = members.indexOf(p.id) !== -1;
 
-                          <h3>{title}</h3>
-                          <span className="text-sm text-gray-500">
-                            {statusText}
-                          </span>
-
-                          <div className="flex gap-10 my-8">
-                            <button
-                              onClick={() => setConfirmOpen(true)}
-                              className="flex flex-col gap-3 items-center rounded-md cursor-pointer hover:opacity-75 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                            >
-                              <div
-                                className="w-10 h-10 bg-neutral-100 rounded-full flex items-center justify-center"
-                                aria-hidden
-                              >
-                                <IoTrash size={20} />
-                              </div>
-                              <div className="text-sm font-light text-neutral-600">
-                                Delete
-                              </div>
-                            </button>
-                          </div>
-
-                          <div className="w-full pb-5 pt-5 sm:px-0 sm:pt-0">
-                            <dl className="space-y-8 px-4 sm:space-y-6 sm:px-6">
-                              {data.is_group ? (
-                                <div>
-                                  <dt className="text-sm font-medium text-gray-500 sm:w-40 sm:flex-shrink-0">
-                                    Emails
-                                  </dt>
-                                  <dd className="mt-1 text-sm text-gray-900 sm:col-span-2">
-                                    {data.users
-                                      .map((user) => user.email)
-                                      .join(", ")}
-                                  </dd>
-                                </div>
-                              ) : (
-                                <div>
-                                  <dt className="text-sm font-medium text-gray-500 sm:w-40 sm:flex-shrink-0">
-                                    Email
-                                  </dt>
-                                  <dd className="mt-1 text-sm text-gray-900 sm:col-span-2">
-                                    {otherUser.email}
-                                  </dd>
-                                </div>
-                              )}
-
-                              {!data.is_group && (
-                                <>
-                                  <hr />
-                                  <div>
-                                    <dt className="text-sm font-medium text-gray-500 sm:w-40 sm:flex-shrink-0">
-                                      Joined
-                                    </dt>
-                                    <dd className="mt-1 text-sm text-gray-900 sm:col-span-2">
-                                      <time dateTime={joinedDate}>
-                                        {joinedDate}
-                                      </time>
-                                    </dd>
-                                  </div>
-                                </>
-                              )}
-                            </dl>
-                          </div>
-                        </div>
-                      </div>
+                  return (
+                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px", borderRadius: 10 }}>
+                      <Avatar user={p} size={36} />
+                      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: 500 }}>{p.name}</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: "var(--t3)" }}>
+                          {online ? "Online" : "Offline"}
+                        </span>
+                      </span>
                     </div>
-                  </Dialog.Panel>
-                </Transition.Child>
+                  );
+                })}
               </div>
             </div>
-          </div>
-        </Dialog>
-      </Transition.Root>
+          )}
+
+          {currentTab === "settings" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Display</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {(["compact", "comfortable", "roomy"] as const).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={density === d}
+                      onClick={() => setDensity(d)}
+                      style={{
+                        flex: 1,
+                        height: 34,
+                        border: "none",
+                        borderRadius: 10,
+                        background: density === d ? "var(--sel)" : "var(--hover)",
+                        color: density === d ? "var(--accent-t)" : "var(--t1)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  aria-pressed={glass}
+                  onClick={toggleGlass}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "10px 12px",
+                    border: "none",
+                    borderRadius: 10,
+                    background: "var(--hover)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>Translucency</span>
+                    <span style={{ fontSize: 11.5, color: "var(--t3)" }}>{glass ? "On" : "Off"}</span>
+                  </span>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 38,
+                      height: 22,
+                      borderRadius: 999,
+                      background: glass ? "var(--accent)" : "var(--hair)",
+                      position: "relative",
+                      flex: "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 2,
+                        left: glass ? 18 : 2,
+                        width: 18,
+                        height: 18,
+                        borderRadius: 999,
+                        background: "#fff",
+                        boxShadow: "0 1px 2px rgba(0,0,0,.2)",
+                        transition: "left 200ms var(--ease)",
+                      }}
+                    />
+                  </span>
+                </button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>This chat</span>
+                <button
+                  type="button"
+                  onClick={openProfile}
+                  style={{
+                    padding: "10px 12px",
+                    border: "none",
+                    borderRadius: 10,
+                    background: "var(--hover)",
+                    color: "var(--t1)",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  Your profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 12px",
+                    border: "none",
+                    borderRadius: 10,
+                    background: "var(--sel)",
+                    color: "var(--accent-t)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <HiOutlineTrash size={16} />
+                  Delete chat
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        title="Delete chat"
+        body="This removes the conversation for everyone in it. This can't be undone."
+        confirmLabel="Delete"
+        isLoading={deleting}
+        onConfirm={onDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </>
   );
 };

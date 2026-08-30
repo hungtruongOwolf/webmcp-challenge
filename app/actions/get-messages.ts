@@ -14,7 +14,9 @@ const getMessages = async (conversationId: string) => {
 
     const { data, error } = await supabase
       .from("messages")
-      .select(`*, sender:profiles (*), seen:message_seen ( profile:profiles (*) )`)
+      .select(
+        `*, sender:profiles!messages_sender_id_fkey (*), seen:message_seen ( profile:profiles!message_seen_user_id_fkey (*) )`,
+      )
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
 

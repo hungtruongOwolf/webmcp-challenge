@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 
-import prisma from "@/app/libs/prismadb";
-import getCurrentUser from "@/app/actions/get-current-user";
-import { pusherServer } from "@/app/libs/pusher";
+import { createClient } from "@/app/libs/supabase/server";
 
 type IParams = {
   conversationId?: string;
@@ -14,43 +12,28 @@ export async function DELETE(
 ) {
   try {
     const { conversationId } = await params;
-    const currentUser = await getCurrentUser();
+    const supabase = await createClient();
 
-    if (!currentUser?.id)
-      return new NextResponse("Unauthorized.", { status: 401 });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const existingConversation = await prisma.conversation.findUnique({
-      where: {
-        id: conversationId,
-      },
-      include: {
-        users: true,
-      },
-    });
+    if (!user) return new NextResponse("Unauthorized.", { status: 401 });
 
-    if (!existingConversation)
-      return new NextResponse("Invalid Id.", { status: 400 });
+    // RLS scopes this delete to conversations the caller is a member of --
+    // a non-member's request affects zero rows instead of erroring.
+    const { data, error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("id", conversationId)
+      .select()
+      .maybeSingle();
 
-    const deletedConversation = await prisma.conversation.deleteMany({
-      where: {
-        id: conversationId,
-        userIds: {
-          hasSome: [currentUser.id],
-        },
-      },
-    });
+    if (error) throw error;
 
-    existingConversation.users.forEach((user) => {
-      if (user.email) {
-        pusherServer.trigger(
-          user.email,
-          "conversation:remove",
-          existingConversation,
-        );
-      }
-    });
+    if (!data) return new NextResponse("Invalid Id.", { status: 400 });
 
-    return NextResponse.json(deletedConversation);
+    return NextResponse.json(data);
   } catch (error: unknown) {
     console.error("ERROR_CONVERSATION_DELETE:", error);
     return new NextResponse("Internal Server Error.", { status: 500 });
