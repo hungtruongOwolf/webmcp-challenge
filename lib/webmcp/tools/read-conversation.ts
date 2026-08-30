@@ -7,7 +7,8 @@ const MAX_LIMIT = 40;
 export const readConversation: ToolFactory = (ctx) => ({
   name: "read_conversation",
   description:
-    "Read the most recent messages in one conversation, oldest first. Marks them as seen.",
+    "Read recent messages, oldest first, and marks them seen. Images show as a URL -- " +
+    "ask the user before calling describe_image on one.",
   inputSchema: {
     type: "object",
     properties: {
@@ -49,7 +50,7 @@ export const readConversation: ToolFactory = (ctx) => ({
     const lines = ordered.map((m: any) => {
       const who = m.sender?.name || "Unknown";
       const when = relativeTime(m.created_at);
-      const body = m.image ? "[shared an image]" : m.body || "";
+      const body = m.image ? `[shared an image: ${m.image}]` : m.body || "";
 
       return `${who} (${when}): ${wrapUntrusted(body)}`;
     });
