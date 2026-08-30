@@ -1,24 +1,26 @@
-import getConversationById from "@/app/actions/get-conversation-by-id";
-import getMessages from "@/app/actions/get-messages";
+"use client";
+
+import { useEffect } from "react";
+
+import { useConversationsList } from "@/app/context/conversations-context";
+import useConversation from "@/app/hooks/use-conversation";
 import EmptyState from "@/app/components/empty-state";
 
 import Thread from "./components/thread";
 
-type IParams = {
-  conversationId: string;
-};
+const ConversationId = () => {
+  const { conversationId } = useConversation();
+  const { conversations, ensureConversation } = useConversationsList();
 
-const ConversationId = async ({ params }: { params: Promise<IParams> }) => {
-  const { conversationId } = await params;
+  const conversation = conversations.find((c) => c.id === conversationId);
 
-  const conversation = await getConversationById(conversationId);
-  const messages = await getMessages(conversationId);
+  useEffect(() => {
+    if (!conversation && conversationId) ensureConversation(conversationId);
+  }, [conversation, conversationId, ensureConversation]);
 
-  if (!conversation) {
-    return <EmptyState />;
-  }
+  if (!conversation) return <EmptyState />;
 
-  return <Thread conversation={conversation} initialMessages={messages} />;
+  return <Thread conversation={conversation} initialMessages={conversation.messages} />;
 };
 
 export default ConversationId;
