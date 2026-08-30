@@ -1,23 +1,30 @@
-import prisma from "@/app/libs/prismadb";
+import { createClient } from "@/app/libs/supabase/server";
 
-import getSession from "@/app/actions/get-session";
-
+/**
+ * The signed-in user's profile row, or null.
+ *
+ * Reads through the user's own cookie, so RLS applies. The returned shape
+ * mirrors the old Prisma User closely enough that avatars, the sidebar and
+ * the settings modal did not need rewriting.
+ */
 const getCurrentUser = async () => {
   try {
-    const session = await getSession();
+    const supabase = await createClient();
 
-    if (!session?.user?.email) return null;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const currentUser = await prisma.user.findUnique({
-      where: {
-        email: session.user.email as string,
-      },
-    });
+    if (!user) return null;
 
-    if (!currentUser) return null;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
 
-    return currentUser;
-  } catch (error: unknown) {
+    return profile ?? null;
+  } catch {
     return null;
   }
 };

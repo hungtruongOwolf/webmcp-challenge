@@ -1,11 +1,15 @@
-import { withAuth } from "next-auth/middleware";
+import type { NextRequest } from "next/server";
 
-export default withAuth({
-  pages: {
-    signIn: "/",
-  },
-});
+import { updateSession } from "@/app/libs/supabase/middleware";
+
+export async function middleware(request: NextRequest) {
+  return await updateSession(request);
+}
 
 export const config = {
-  matcher: ["/users/:path*", "/conversations/:path*"],
+  // Runs broadly so the auth cookie is refreshed on every navigation, not
+  // just on protected routes. The route guard itself lives in updateSession.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|images|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

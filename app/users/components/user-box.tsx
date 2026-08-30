@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import type { User } from "@prisma/client";
+import type { User } from "@/app/types";
 
 import Avatar from "@/app/components/avatar";
 import LoadingModal from "@/app/components/loading-modal";

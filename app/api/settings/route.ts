@@ -1,28 +1,29 @@
-import getCurrentUser from "@/app/actions/get-current-user";
 import { NextResponse } from "next/server";
 
-import prisma from "@/app/libs/prismadb";
+import { createClient } from "@/app/libs/supabase/server";
 
 export async function POST(req: Request) {
   try {
-    const currentUser = await getCurrentUser();
-    const body = await req.json();
-    const { name, image } = body;
+    const supabase = await createClient();
 
-    if (!currentUser?.id)
-      return new NextResponse("Unauthorized.", { status: 401 });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const updatedUser = await prisma.user.update({
-      where: {
-        id: currentUser.id,
-      },
-      data: {
-        image,
-        name,
-      },
-    });
+    if (!user) return new NextResponse("Unauthorized.", { status: 401 });
 
-    return NextResponse.json(updatedUser);
+    const { name, image } = await req.json();
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ name, image })
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json(data);
   } catch (error: unknown) {
     console.error("ERROR_SETTINGS:", error);
     return new NextResponse("Internal Server Error.", { status: 500 });

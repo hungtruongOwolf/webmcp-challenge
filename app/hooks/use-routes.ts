@@ -1,13 +1,14 @@
 import { useMemo } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { HiChat } from "react-icons/hi";
 import { HiArrowLeftOnRectangle, HiUsers } from "react-icons/hi2";
-import { signOut } from "next-auth/react";
 
 import useConversation from "@/app/hooks/use-conversation";
+import { createClient } from "@/app/libs/supabase/client";
 
 const useRoutes = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const { conversationId } = useConversation();
 
   const routes = useMemo(
@@ -27,11 +28,15 @@ const useRoutes = () => {
       {
         label: "Logout",
         href: "#",
-        onClick: () => signOut(),
+        onClick: async () => {
+          await createClient().auth.signOut();
+          router.push("/");
+          router.refresh();
+        },
         icon: HiArrowLeftOnRectangle,
       },
     ],
-    [pathname, conversationId]
+    [pathname, conversationId, router]
   );
 
   return routes;

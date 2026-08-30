@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Dialog, Transition } from "@headlessui/react";
-import type { Conversation, User } from "@prisma/client";
+import type { Conversation, User } from "@/app/types";
 import { IoClose, IoTrash } from "react-icons/io5";
 
 import useOtherUser from "@/app/hooks/use-other-user";
@@ -32,15 +32,15 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   const isActive = members.indexOf(otherUser?.email!) === -1;
 
   const joinedDate = useMemo(() => {
-    return format(new Date(otherUser.createdAt), "PP");
-  }, [otherUser.createdAt]);
+    return format(new Date(otherUser.created_at), "PP");
+  }, [otherUser.created_at]);
 
   const title = useMemo(() => {
     return data.name || otherUser.name;
   }, [data.name, otherUser.name]);
 
   const statusText = useMemo(() => {
-    if (data.isGroup) {
+    if (data.is_group) {
       return `${data.users.length} members`;
     }
 
@@ -98,7 +98,7 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                       <div className="relative mt-6 flex-1 px-4 sm:px-6">
                         <div className="flex flex-col items-center">
                           <div className="mb-2">
-                            {data.isGroup ? (
+                            {data.is_group ? (
                               <AvatarGroup users={data.users} />
                             ) : (
                               <Avatar user={otherUser} />
@@ -129,7 +129,7 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
                           <div className="w-full pb-5 pt-5 sm:px-0 sm:pt-0">
                             <dl className="space-y-8 px-4 sm:space-y-6 sm:px-6">
-                              {data.isGroup ? (
+                              {data.is_group ? (
                                 <div>
                                   <dt className="text-sm font-medium text-gray-500 sm:w-40 sm:flex-shrink-0">
                                     Emails
@@ -151,7 +151,7 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                                 </div>
                               )}
 
-                              {!data.isGroup && (
+                              {!data.is_group && (
                                 <>
                                   <hr />
                                   <div>
