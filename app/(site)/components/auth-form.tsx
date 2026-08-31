@@ -200,7 +200,11 @@ const AuthForm = () => {
           </>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          noValidate
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-6"
+        >
           {variant === "REGISTER" && (
             <Input
               type="text"

@@ -47,6 +47,9 @@ const makeClient = () => ({
 const gatewayFor = (client = makeClient()) =>
   createAuthGateway(client, "https://messenger.example");
 
+type FakeClient = ReturnType<typeof makeClient>;
+type Gateway = ReturnType<typeof gatewayFor>;
+
 describe("auth failure normalization", () => {
   it("maps a cancelled passkey prompt without exposing its raw message", async () => {
     const client = makeClient();
@@ -281,6 +284,94 @@ describe("passkey boundaries", () => {
       code: "UNKNOWN",
     });
   });
+});
+
+describe("rejected Supabase operations", () => {
+  const cases: Array<{
+    operation: string;
+    reject: (client: FakeClient, error: Error) => void;
+    invoke: (gateway: Gateway) => Promise<unknown>;
+    code: AuthFailureCode;
+  }> = [
+    {
+      operation: "passkey sign-in",
+      reject: (client, error) =>
+        client.auth.signInWithPasskey.mockRejectedValueOnce(error),
+      invoke: (gateway) => gateway.signInWithPasskey(),
+      code: "PASSKEY_FAILED",
+    },
+    {
+      operation: "password sign-in",
+      reject: (client, error) =>
+        client.auth.signInWithPassword.mockRejectedValueOnce(error),
+      invoke: (gateway) =>
+        gateway.signInWithPassword({
+          email: "blind.user@example.org",
+          password: "password",
+        }),
+      code: "UNKNOWN",
+    },
+    {
+      operation: "password sign-up",
+      reject: (client, error) =>
+        client.auth.signUp.mockRejectedValueOnce(error),
+      invoke: (gateway) =>
+        gateway.signUpWithPassword({
+          name: "Blind User",
+          email: "blind.user@example.org",
+          password: "password",
+          returnPath: "/conversations",
+        }),
+      code: "UNKNOWN",
+    },
+    {
+      operation: "email link",
+      reject: (client, error) =>
+        client.auth.signInWithOtp.mockRejectedValueOnce(error),
+      invoke: (gateway) =>
+        gateway.sendEmailLink({
+          email: "blind.user@example.org",
+          returnPath: "/conversations",
+          shouldCreateUser: false,
+        }),
+      code: "EMAIL_LINK_FAILED",
+    },
+    {
+      operation: "passkey registration",
+      reject: (client, error) =>
+        client.auth.registerPasskey.mockRejectedValueOnce(error),
+      invoke: (gateway) => gateway.registerPasskey(),
+      code: "PASSKEY_FAILED",
+    },
+    {
+      operation: "passkey list",
+      reject: (client, error) =>
+        client.auth.passkey.list.mockRejectedValueOnce(error),
+      invoke: (gateway) => gateway.listPasskeys(),
+      code: "UNKNOWN",
+    },
+    {
+      operation: "passkey deletion",
+      reject: (client, error) =>
+        client.auth.passkey.delete.mockRejectedValueOnce(error),
+      invoke: (gateway) => gateway.deletePasskey("passkey-id"),
+      code: "UNKNOWN",
+    },
+  ];
+
+  it.each(cases)(
+    "normalizes and conceals a rejected $operation request",
+    async ({ reject, invoke, code, operation }) => {
+      const client = makeClient();
+      const rawMessage = `raw ${operation} request details`;
+      reject(client, new Error(rawMessage));
+
+      const result = await invoke(gatewayFor(client));
+
+      expect(result).toEqual({ ok: false, code });
+      expect(JSON.stringify(result)).not.toContain(rawMessage);
+    }
+  );
 });
 
 it.each<[AuthFailureCode, string]>([
