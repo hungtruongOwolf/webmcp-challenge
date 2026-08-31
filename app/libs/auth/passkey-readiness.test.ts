@@ -93,4 +93,23 @@ describe("evaluatePasskeyReadiness", () => {
       }).status
     ).toBe("misconfigured");
   });
+
+  it.each([
+    "https://messenger.example/path",
+    "https://messenger.example?preview=true",
+    "https://messenger.example#details",
+    "https://user:password@messenger.example",
+  ])(
+    "rejects a configured value with non-origin URL components: %s",
+    (configuredOrigin) => {
+      expect(
+        evaluatePasskeyReadiness({
+          currentOrigin: "https://messenger.example",
+          configuredOrigin,
+          rpId: "messenger.example",
+          hasWebAuthn: true,
+        }).status
+      ).toBe("misconfigured");
+    }
+  );
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Button from "@/app/components/button";
@@ -25,14 +25,23 @@ export const PasskeyEnrollment = ({
   const router = useRouter();
   const { announce } = useWebMCPConnection();
   const readiness = usePasskeyReadiness();
-  const [authGateway] = useState(() => gateway ?? createAuthGateway());
+  const gatewayRef = useRef<AuthGateway | null>(gateway ?? null);
   const [isBusy, setIsBusy] = useState(false);
   const enrollButtonRef = useRef<HTMLButtonElement>(null);
   const destination = sanitizeAuthReturnPath(returnPath);
 
+  const getGateway = () => {
+    gatewayRef.current ??= createAuthGateway();
+    return gatewayRef.current;
+  };
+
+  useEffect(() => {
+    if (readiness.status !== "checking") announce(readiness.message);
+  }, [announce, readiness.message, readiness.status]);
+
   const enroll = async () => {
     setIsBusy(true);
-    const result = await authGateway.registerPasskey();
+    const result = await getGateway().registerPasskey();
     setIsBusy(false);
 
     if (result.ok) {

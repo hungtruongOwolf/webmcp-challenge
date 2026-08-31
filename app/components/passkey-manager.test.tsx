@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthGateway, AuthResult } from "@/app/libs/auth/auth-gateway";
@@ -65,13 +66,14 @@ const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
   ...overrides,
 });
 
-const renderManager = (gateway: AuthGateway) =>
-  render(
+const managerTree = (gateway?: AuthGateway) => (
     <WebMCPConnectionProvider modelContext={null} currentUserId="user-a">
       <ConnectionStatusIndicator />
       <PasskeyManager gateway={gateway} />
     </WebMCPConnectionProvider>
-  );
+);
+
+const renderManager = (gateway?: AuthGateway) => render(managerTree(gateway));
 
 const waitForProvider = () =>
   waitFor(() =>
@@ -90,6 +92,54 @@ describe("PasskeyManager", () => {
     supabaseBoundary.list.mockResolvedValue({ data: [passkey], error: null });
     supabaseBoundary.remove.mockResolvedValue({ data: null, error: null });
     supabaseBoundary.register.mockResolvedValue({ data: null, error: null });
+  });
+
+  it("renders without constructing a default gateway on the server", () => {
+    const originalWindow = globalThis.window;
+    const originalOrigin = process.env.NEXT_PUBLIC_APP_ORIGIN;
+    delete process.env.NEXT_PUBLIC_APP_ORIGIN;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: undefined,
+    });
+
+    try {
+      expect(() => renderToString(managerTree())).not.toThrow();
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: originalWindow,
+      });
+      if (originalOrigin === undefined) {
+        delete process.env.NEXT_PUBLIC_APP_ORIGIN;
+      } else {
+        process.env.NEXT_PUBLIC_APP_ORIGIN = originalOrigin;
+      }
+    }
+  });
+
+  it("announces the final readiness transition through the shared live region", async () => {
+    browser.readiness = {
+      status: "checking",
+      message: "Checking passkey support…",
+    };
+    const gateway = createGateway();
+    const view = renderManager(gateway);
+    await waitForProvider();
+
+    browser.readiness = {
+      status: "unsupported",
+      message:
+        "Passkeys are not supported in this browser. Use an email link or password.",
+    };
+    view.rerender(managerTree(gateway));
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Passkeys are not supported in this browser. Use an email link or password."
+      )
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
   it("keeps existing passkeys removable when enrollment is unsupported", async () => {

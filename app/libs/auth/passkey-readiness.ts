@@ -56,6 +56,8 @@ export const evaluatePasskeyReadiness = ({
     (isLocalDevelopment && configuredUrl.protocol === "http:");
 
   if (
+    currentOrigin !== currentUrl.origin ||
+    configuredOrigin !== configuredUrl.origin ||
     currentUrl.origin !== configuredUrl.origin ||
     configuredUrl.hostname !== rpId ||
     !hasSecureProtocol
