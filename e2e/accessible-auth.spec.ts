@@ -198,7 +198,7 @@ test("logout aborts the authenticated registration before restoring the public s
     authenticated: true,
     state: "CONNECTED",
   });
-  const authenticatedRegistrationId = await page.evaluate(() => {
+  const authenticatedRegistration = await page.evaluate(() => {
     const surface = (
       window as unknown as Window & { __webmcpTest: WebMCPTestSurface }
     ).__webmcpTest;
@@ -210,7 +210,10 @@ test("logout aborts the authenticated registration before restoring the public s
         `Expected one authenticated status registration, found ${registrations.length}.`
       );
     }
-    return registrations[0].registrationId;
+    return {
+      registrationId: registrations[0].registrationId,
+      baselineEventOrder: surface.events.at(-1)?.order ?? 0,
+    };
   });
 
   await page.getByRole("link", { name: "Logout" }).click();
@@ -223,47 +226,51 @@ test("logout aborts the authenticated registration before restoring the public s
   });
   await expect
     .poll(() =>
-      page.evaluate((oldRegistrationId) => {
+      page.evaluate(({ oldRegistrationId, baselineEventOrder }) => {
         const surface = (
           window as unknown as Window & { __webmcpTest: WebMCPTestSurface }
         ).__webmcpTest;
         const activeStatusTools = surface.tools.filter(
           ({ name }) => name === "get_connection_status"
         );
-        const oldAbortEvents = surface.events.filter(
-          (event) =>
-            event.type === "abort" &&
-            event.registrationId === oldRegistrationId
-        );
         const replacement = activeStatusTools[0];
-        const replacementRegister = surface.events.find(
+        const postBaselineStatusEvents = surface.events.filter(
           (event) =>
-            event.type === "register" &&
-            event.registrationId === replacement?.registrationId
+            event.order > baselineEventOrder &&
+            event.name === "get_connection_status"
         );
 
         return {
           authenticatedRegistrationAbsent: !surface.tools.some(
             ({ registrationId }) => registrationId === oldRegistrationId
           ),
-          authenticatedRegistrationAbortCount: oldAbortEvents.length,
           exactlyOneActiveStatusTool: activeStatusTools.length === 1,
           replacementHasNewId:
             replacement !== undefined &&
             replacement.registrationId !== oldRegistrationId,
-          abortPrecedesReplacement:
-            oldAbortEvents.length === 1 &&
-            replacementRegister !== undefined &&
-            oldAbortEvents[0].order < replacementRegister.order,
+          postBaselineStatusSequence: postBaselineStatusEvents.map((event) => {
+            const generation =
+              event.registrationId === oldRegistrationId
+                ? "authenticated"
+                : event.registrationId === replacement?.registrationId
+                  ? "replacement"
+                  : "other";
+            return `${event.type}:${generation}`;
+          }),
         };
-      }, authenticatedRegistrationId)
+      }, {
+        oldRegistrationId: authenticatedRegistration.registrationId,
+        baselineEventOrder: authenticatedRegistration.baselineEventOrder,
+      })
     )
     .toEqual({
       authenticatedRegistrationAbsent: true,
-      authenticatedRegistrationAbortCount: 1,
       exactlyOneActiveStatusTool: true,
       replacementHasNewId: true,
-      abortPrecedesReplacement: true,
+      postBaselineStatusSequence: [
+        "abort:authenticated",
+        "register:replacement",
+      ],
     });
 });
 
