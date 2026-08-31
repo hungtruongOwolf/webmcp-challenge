@@ -11,7 +11,9 @@ async function Sidebar({ children }: PropsWithChildren) {
     <div className="h-full">
       <DesktopSidebar currentUser={currentUser!} />
       <MobileFooter />
-      <main className="lg:pl-20 h-full">{children}</main>
+      <main id="main-content" tabIndex={-1} className="lg:pl-20 h-full">
+        {children}
+      </main>
     </div>
   );
 }
