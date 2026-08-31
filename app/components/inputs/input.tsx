@@ -42,10 +42,10 @@ const Input = <T extends FieldValues,>({
   const errorId = `${id}-error`;
 
   return (
-    <div className="gap-y-2">
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <label
         htmlFor={id}
-        className="block text-sm font-medium leading-6 text-gray-900"
+        style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}
       >
         {label}
       </label>
@@ -65,14 +65,31 @@ const Input = <T extends FieldValues,>({
             required: required ? `${label} is required.` : false,
           })}
           className={clsx(
-            "form-input block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6",
-            error && "focus:ring-rose-500",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600",
+            error && "focus-visible:outline-rose-600",
             disabled && "opacity-50 cursor-default"
           )}
+          style={{
+            minHeight: 42,
+            width: "100%",
+            padding: "0 12px",
+            border: "none",
+            borderRadius: 10,
+            background: "var(--bub-in)",
+            color: "var(--t1)",
+            fontSize: 14,
+            boxShadow: error
+              ? "inset 0 0 0 1.5px #e5484d"
+              : "inset 0 0 0 0.5px var(--hair)",
+          }}
         />
       </div>
 
-      {errorMessage && <p id={errorId}>{errorMessage}</p>}
+      {errorMessage && (
+        <p id={errorId} style={{ margin: 0, fontSize: 12, color: "#c73e43" }}>
+          {errorMessage}
+        </p>
+      )}
     </div>
   );
 };

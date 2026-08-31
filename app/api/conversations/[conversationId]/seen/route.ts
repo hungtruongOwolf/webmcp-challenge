@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 
-import prisma from "@/app/libs/prismadb";
-import getCurrentUser from "@/app/actions/get-current-user";
-import { pusherServer } from "@/app/libs/pusher";
+import { createClient } from "@/app/libs/supabase/server";
 
 type IParams = {
   conversationId: string;
@@ -13,70 +11,45 @@ export async function POST(
   { params }: { params: Promise<IParams> },
 ) {
   try {
-    const currentUser = await getCurrentUser();
     const { conversationId } = await params;
+    const supabase = await createClient();
 
-    if (!currentUser?.id || !currentUser?.email) {
-      return new NextResponse("Unauthorized.", { status: 401 });
-    }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    // find the existing conversation
-    const conversation = await prisma.conversation.findUnique({
-      where: {
-        id: conversationId,
-      },
-      include: {
-        messages: {
-          include: {
-            seen: true,
-          },
-        },
-        users: true,
-      },
-    });
+    if (!user) return new NextResponse("Unauthorized.", { status: 401 });
 
-    if (!conversation) {
-      return new NextResponse("Invalid Id.", { status: 400 });
-    }
+    const { data: messages } = await supabase
+      .from("messages")
+      .select("id")
+      .eq("conversation_id", conversationId);
 
-    // find the last message
-    const lastMessage = conversation.messages[conversation.messages.length - 1];
+    if (!messages || messages.length === 0) return NextResponse.json({ ok: true });
 
-    if (!lastMessage) return NextResponse.json(conversation);
+    const { data: seenRows } = await supabase
+      .from("message_seen")
+      .select("message_id")
+      .eq("user_id", user.id)
+      .in("message_id", messages.map((m) => m.id));
 
-    // update seen of last message
-    const updatedMessage = await prisma.message.update({
-      where: {
-        id: lastMessage.id,
-      },
-      include: {
-        sender: true,
-        seen: true,
-      },
-      data: {
-        seen: {
-          connect: {
-            id: currentUser.id,
-          },
-        },
-      },
-    });
+    const seenIds = new Set((seenRows ?? []).map((r) => r.message_id));
+    const unseenIds = messages.map((m) => m.id).filter((id) => !seenIds.has(id));
 
-    await pusherServer.trigger(currentUser.email, "conversation:update", {
-      id: conversationId,
-      messages: [updatedMessage],
-    });
+    if (unseenIds.length === 0) return NextResponse.json({ ok: true });
 
-    if (lastMessage.seenIds.indexOf(currentUser.id) !== -1)
-      return NextResponse.json(conversation);
+    // Idempotent: marking an already-seen message seen again is a no-op,
+    // not an error, and the DB trigger only broadcasts on the first insert.
+    const { error } = await supabase
+      .from("message_seen")
+      .upsert(
+        unseenIds.map((id) => ({ message_id: id, user_id: user.id })),
+        { onConflict: "message_id,user_id", ignoreDuplicates: true }
+      );
 
-    await pusherServer.trigger(
-      conversationId!,
-      "message:update",
-      updatedMessage,
-    );
+    if (error) throw error;
 
-    return NextResponse.json(updatedMessage);
+    return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     console.error("ERROR_MESSAGES_SEEN:", error);
     return new NextResponse("Internal Server Error.", { status: 500 });

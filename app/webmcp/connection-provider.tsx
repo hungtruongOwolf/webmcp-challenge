@@ -18,6 +18,7 @@ import { createClient } from "@/app/libs/supabase/client";
 
 import { getWebMCPModelContext } from "./browser-api";
 import type { WebMCPModelContext } from "./browser-api";
+import type { WebMCPTool } from "./browser-api";
 import {
   connectionMessage,
   connectionReducer,
@@ -40,6 +41,7 @@ export type WebMCPConnectionContextValue = {
   returnToSignedOut: (message: string) => void;
   reportSessionExpired: () => void;
   retryConnection: () => void;
+  replaceAuthenticatedTools: (tools: WebMCPTool[]) => void;
 };
 
 export type WebMCPConnectionProviderProps = PropsWithChildren<{
@@ -90,6 +92,7 @@ export const WebMCPConnectionProvider = ({
   const [state, dispatch] = useReducer(connectionReducer, initialState);
   const [message, setMessage] = useState(() => connectionMessage(initialState));
   const [registrationAttempt, setRegistrationAttempt] = useState(0);
+  const [authenticatedTools, setAuthenticatedTools] = useState<WebMCPTool[]>([]);
   const stateRef = useRef(state);
   const pathnameRef = useRef(pathname);
   const snapshotRef = useRef<ConnectionSnapshot>(
@@ -150,6 +153,10 @@ export const WebMCPConnectionProvider = ({
     setRegistrationAttempt((attempt) => attempt + 1);
   }, []);
 
+  const replaceAuthenticatedTools = useCallback((tools: WebMCPTool[]) => {
+    setAuthenticatedTools(tools);
+  }, []);
+
   useEffect(() => {
     activeControllerRef.current?.abort();
     const controller = new AbortController();
@@ -207,10 +214,39 @@ export const WebMCPConnectionProvider = ({
       });
 
       try {
-        const tools = registry.getAuthenticatedTools({
+        const registryTools = registry.getAuthenticatedTools({
           getSnapshot,
           apiClient,
         });
+        const registryToolNames = new Set(
+          registryTools.map((tool) => tool.name)
+        );
+        const tools = [
+          ...registryTools,
+          ...authenticatedTools.filter(
+            (tool) => !registryToolNames.has(tool.name)
+          ),
+        ].map((tool) => ({
+          ...tool,
+          execute: async (
+            input: Record<string, unknown>,
+            agent?: ModelContextAgent
+          ) => {
+            if (!isCurrent()) {
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: "This Messenger session is no longer active. Sign in on the page and try again.",
+                  },
+                ],
+                isError: true,
+              };
+            }
+
+            return tool.execute(input, agent);
+          },
+        }));
         await Promise.all(
           tools.map((tool) =>
             modelContext.registerTool(tool, { signal: controller.signal })
@@ -239,6 +275,7 @@ export const WebMCPConnectionProvider = ({
     };
   }, [
     currentUserId,
+    authenticatedTools,
     modelContext,
     registrationAttempt,
     registry,
@@ -255,6 +292,7 @@ export const WebMCPConnectionProvider = ({
       returnToSignedOut,
       reportSessionExpired,
       retryConnection,
+      replaceAuthenticatedTools,
     }),
     [
       announce,
@@ -262,6 +300,7 @@ export const WebMCPConnectionProvider = ({
       message,
       reportSessionExpired,
       retryConnection,
+      replaceAuthenticatedTools,
       returnToSignedOut,
       state,
     ]

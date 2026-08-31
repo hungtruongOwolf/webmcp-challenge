@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { Conversation, Message, User } from "@/app/types";
-import { format } from "date-fns";
-import { useCurrentUser } from "@/app/context/current-user-context";
-import clsx from "clsx";
+import { format, isToday, isThisWeek } from "date-fns";
 
 import useOtherUser from "@/app/hooks/use-other-user";
-import { FullConversationType } from "@/app/types";
+import type { FullConversationType } from "@/app/types";
+import { useCurrentUser } from "@/app/context/current-user-context";
 import Avatar from "@/app/components/avatar";
 import AvatarGroup from "@/app/components/avatar-group";
 
@@ -17,15 +15,10 @@ type ConversationBoxProps = {
   selected?: boolean;
 };
 
-const ConversationBox: React.FC<ConversationBoxProps> = ({
-  data,
-  selected,
-}) => {
+const ConversationBox: React.FC<ConversationBoxProps> = ({ data, selected }) => {
   const otherUser = useOtherUser(data);
   const currentUser = useCurrentUser();
   const router = useRouter();
-
-  const conversationRef = useRef<HTMLDivElement | null>(null);
 
   const handleClick = useCallback(() => {
     router.push(`/conversations/${data.id}`);
@@ -37,87 +30,115 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({
     return messages[messages.length - 1];
   }, [data.messages]);
 
-  const userEmail = useMemo(() => {
-    return currentUser?.email;
-  }, [currentUser?.email]);
+  const myEmail = currentUser?.email;
 
-  const hasSeen = useMemo(() => {
-    if (!lastMessage) return false;
+  const unreadCount = useMemo(() => {
+    if (!myEmail) return 0;
 
-    const seenArray = lastMessage.seen || [];
+    return (data.messages || []).filter(
+      (m) =>
+        m.sender?.email !== myEmail &&
+        !m.seen.some((u) => u.email === myEmail)
+    ).length;
+  }, [data.messages, myEmail]);
 
-    if (!userEmail) return false;
-
-    return seenArray.filter((user) => user.email === userEmail).length !== 0;
-  }, [userEmail, lastMessage]);
+  const isUnread = unreadCount > 0;
 
   const lastMessageText = useMemo(() => {
     if (lastMessage?.image) return "Sent an image";
-
+    if (lastMessage?.file_url) return `Sent a file: ${lastMessage.file_name || "attachment"}`;
     if (lastMessage?.body) return lastMessage.body;
 
     return "Started a conversation";
   }, [lastMessage]);
 
-  useEffect(() => {
-    conversationRef.current?.addEventListener("keydown", (e) => {
-      if (e.key === " " || e.key === "Enter" || e.key === "Spacebar") {
-        handleClick();
-      }
-    });
+  const timeLabel = useMemo(() => {
+    if (!lastMessage?.created_at) return "";
 
-    return conversationRef.current?.removeEventListener("keydown", (e) => {
-      if (e.key === " " || e.key === "Enter" || e.key === "Spacebar") {
-        handleClick();
-      }
-    });
-  }, [conversationRef, handleClick]);
+    const d = new Date(lastMessage.created_at);
+    if (isToday(d)) return format(d, "p");
+    if (isThisWeek(d)) return format(d, "EEEE");
+
+    return format(d, "d MMM");
+  }, [lastMessage]);
+
+  const title = data.name || otherUser?.name || "Unknown";
 
   return (
-    <div
-      ref={conversationRef}
-      role="button"
-      aria-pressed={false}
-      tabIndex={0}
+    <button
+      type="button"
+      role="listitem"
       onClick={handleClick}
-      className={clsx(
-        "w-full relative flex items-center space-x-3 hover:bg-neutral-100 rounded-lg transition cursor-pointer p-3",
-        selected ? "bg-neutral-100" : "bg-white"
-      )}
+      aria-current={selected}
+      className="gm-row"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "auto 1fr auto",
+        alignItems: "center",
+        gap: 12,
+        width: "100%",
+        padding: 10,
+        border: "none",
+        borderRadius: 10,
+        background: selected ? "var(--sel)" : "transparent",
+        textAlign: "left",
+        cursor: "pointer",
+      }}
     >
-      {data?.is_group ? (
+      {data.is_group ? (
         <AvatarGroup users={data.users} />
       ) : (
         <Avatar user={otherUser} />
       )}
-      <div className="min-w-0 flex-1">
-        <div className="focus:outline-none">
-          <div className="flex justify-between items-center mb-1">
-            <p className="text-md font-medium text-gray-900">
-              {data.name || otherUser.name}
-            </p>
-            {lastMessage?.created_at && (
-              <time
-                dateTime={format(new Date(lastMessage.created_at), "p")}
-                className="text-xs text-gray-400 font-light"
-                suppressHydrationWarning
-              >
-                {format(new Date(lastMessage.created_at), "p")}
-              </time>
-            )}
-          </div>
-
-          <p
-            className={clsx(
-              "truncate text-sm",
-              hasSeen ? "text-gray-500" : "text-black font-medium"
-            )}
+      <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+        <span
+          style={{
+            fontSize: 14.5,
+            fontWeight: isUnread ? 700 : 500,
+            letterSpacing: "-0.008em",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {title}
+        </span>
+        <span
+          style={{
+            fontSize: 12.5,
+            fontWeight: isUnread ? 600 : 400,
+            color: isUnread ? "var(--t1)" : "var(--t3)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {lastMessageText}
+        </span>
+      </span>
+      <span style={{ flex: "none", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 500, color: "var(--t3)" }}>{timeLabel}</span>
+        {isUnread && (
+          <span
+            aria-label={`${unreadCount} unread`}
+            style={{
+              minWidth: 19,
+              height: 19,
+              padding: "0 5px",
+              borderRadius: 6,
+              background: "var(--accent)",
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 600,
+              display: "grid",
+              placeItems: "center",
+            }}
           >
-            {lastMessageText}
-          </p>
-        </div>
-      </div>
-    </div>
+            {unreadCount}
+          </span>
+        )}
+      </span>
+    </button>
   );
 };
 

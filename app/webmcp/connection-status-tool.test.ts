@@ -15,11 +15,8 @@ it("returns a non-sensitive live snapshot", async () => {
     readOnlyHint: true,
     untrustedContentHint: false,
   });
-  expect(
-    JSON.parse(
-      await tool.execute({}, { signal: new AbortController().signal })
-    )
-  ).toEqual({
+  const initialResult = await tool.execute({});
+  expect(JSON.parse(initialResult.content[0].text)).toEqual({
     authenticated: false,
     state: "SIGNED_OUT",
     route: "/",
@@ -27,9 +24,8 @@ it("returns a non-sensitive live snapshot", async () => {
   });
 
   route = "/conversations";
-  expect(
-    JSON.parse(
-      await tool.execute({}, { signal: new AbortController().signal })
-    ).route
-  ).toBe("/conversations");
+  const updatedResult = await tool.execute({});
+  expect(JSON.parse(updatedResult.content[0].text).route).toBe(
+    "/conversations"
+  );
 });

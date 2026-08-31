@@ -27,6 +27,32 @@ type AuthFormProps = {
   callbackError?: "auth_link_invalid";
 };
 
+const cardStyle: React.CSSProperties = {
+  width: "100%",
+  padding: 24,
+  borderRadius: 22,
+  boxShadow: "var(--e2), inset 0 1px 0 var(--hi)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+};
+
+const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
+  minHeight: 44,
+  border: "none",
+  borderRadius: 10,
+  background: "var(--accent)",
+  color: "#fff",
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.6 : 1,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+});
+
 const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -69,6 +95,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     ) {
       return;
     }
+
     const frame = requestAnimationFrame(() => callbackAlertRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [callbackError, readiness.status]);
@@ -112,86 +139,118 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   };
 
   return (
-    <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div className="rounded-lg bg-white px-4 py-8 shadow-sm sm:px-10">
-        <h2 className="mb-6 text-lg font-semibold text-gray-900">
-          Sign in options
-        </h2>
+    <div className="gm-glass2" style={cardStyle}>
+      <h2
+        style={{
+          margin: 0,
+          fontSize: 17,
+          fontWeight: 600,
+          color: "var(--t1)",
+        }}
+      >
+        Sign in options
+      </h2>
 
-        {readiness.status === "checking" ? (
-          <p className="text-sm text-gray-600">{readiness.message}</p>
-        ) : (
-          <>
-            {callbackError === "auth_link_invalid" && !operationError && (
-              <div
-                ref={callbackAlertRef}
-                role="alert"
-                tabIndex={-1}
-                className="mb-6 rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
-              >
-                <p>That sign-in link is invalid or expired.</p>
-                <a className="underline" href="#email">
-                  Email me a new link
-                </a>
-              </div>
-            )}
-
-            {readiness.status === "ready" ? (
-              <>
-                <button
-                  ref={passkeyButtonRef}
-                  type="button"
-                  onClick={signInWithPasskey}
-                  disabled={isPending}
-                  aria-describedby="passkey-method-description"
-                  className="mb-2 flex w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50"
-                >
-                  <HiOutlineFingerPrint size={20} aria-hidden />
-                  Sign in with a passkey
-                </button>
-                <p
-                  id="passkey-method-description"
-                  className="mb-6 text-sm text-gray-600"
-                >
-                  Your operating system may offer a fingerprint, face, device
-                  PIN, password manager, or hardware security key.
-                </p>
-              </>
-            ) : (
-              <p className="mb-6 text-sm text-gray-600">{readiness.message}</p>
-            )}
-
-            <EmailAuthForm
-              variant={variant}
-              returnPath={destination}
-              gateway={getGateway()}
-              onAuthenticated={completeAuthentication}
-              onPasskeyEnrollment={offerPasskeyEnrollment}
-              isPending={isPending}
-              onSubmissionStart={startSubmission}
-              onSubmissionEnd={endSubmission}
-              operationError={operationError}
-              onOperationError={setOperationError}
-            />
-
-            <div className="mt-6 flex justify-center gap-2 px-2 text-sm text-gray-500">
-              <p>
-                {variant === "LOGIN"
-                  ? "New to Messenger?"
-                  : "Already have an account?"}
+      {readiness.status === "checking" ? (
+        <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
+          {readiness.message}
+        </p>
+      ) : (
+        <>
+          {callbackError === "auth_link_invalid" && !operationError && (
+            <div
+              ref={callbackAlertRef}
+              role="alert"
+              tabIndex={-1}
+              style={{
+                borderRadius: 10,
+                padding: 12,
+                background: "var(--sel)",
+                color: "var(--t1)",
+                fontSize: 13,
+              }}
+            >
+              <p style={{ margin: "0 0 6px" }}>
+                That sign-in link is invalid or expired.
               </p>
-              <button
-                type="button"
-                onClick={toggleVariant}
-                disabled={isPending}
-                className="cursor-pointer underline"
-              >
-                {variant === "LOGIN" ? "Create an account" : "Log in"}
-              </button>
+              <a href="#email" style={{ color: "var(--accent-t)" }}>
+                Email me a new link
+              </a>
             </div>
-          </>
-        )}
-      </div>
+          )}
+
+          {readiness.status === "ready" ? (
+            <>
+              <button
+                ref={passkeyButtonRef}
+                type="button"
+                onClick={signInWithPasskey}
+                disabled={isPending}
+                aria-describedby="passkey-method-description"
+                style={primaryButtonStyle(isPending)}
+              >
+                <HiOutlineFingerPrint size={19} aria-hidden />
+                Sign in with a passkey
+              </button>
+              <p
+                id="passkey-method-description"
+                style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--t2)" }}
+              >
+                Your operating system may offer a fingerprint, face, device
+                PIN, password manager, or hardware security key.
+              </p>
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
+              {readiness.message}
+            </p>
+          )}
+
+          <EmailAuthForm
+            variant={variant}
+            returnPath={destination}
+            gateway={getGateway()}
+            onAuthenticated={completeAuthentication}
+            onPasskeyEnrollment={offerPasskeyEnrollment}
+            isPending={isPending}
+            onSubmissionStart={startSubmission}
+            onSubmissionEnd={endSubmission}
+            operationError={operationError}
+            onOperationError={setOperationError}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 6,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ color: "var(--t3)" }}>
+              {variant === "LOGIN"
+                ? "New to Messenger?"
+                : "Already have an account?"}
+            </span>
+            <button
+              type="button"
+              onClick={toggleVariant}
+              disabled={isPending}
+              style={{
+                border: "none",
+                padding: 0,
+                background: "none",
+                color: "var(--accent-t)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: isPending ? "default" : "pointer",
+              }}
+            >
+              {variant === "LOGIN" ? "Create an account" : "Log in"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

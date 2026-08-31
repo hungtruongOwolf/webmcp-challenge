@@ -1,118 +1,171 @@
 "use client";
 
+import { useRef, useState } from "react";
 import axios from "axios";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import type { User } from "@/app/types";
-import type { FieldValues, SubmitHandler } from "react-hook-form";
+import { HiCheck, HiXMark } from "react-icons/hi2";
 
-import Modal from "@/app/components/modals/modal";
-import Input from "@/app/components/inputs/input";
-import Select from "@/app/components/inputs/select";
-import Button from "@/app/components/button";
+import Avatar from "@/app/components/avatar";
 
 type GroupChatModalProps = {
   users: User[];
-  isOpen?: boolean;
+  isOpen: boolean;
   onClose: () => void;
 };
 
-const GroupChatModal: React.FC<GroupChatModalProps> = ({
-  users,
-  isOpen,
-  onClose,
-}) => {
-  const router = useRouter();
+const GroupChatModal: React.FC<GroupChatModalProps> = ({ users, isOpen, onClose }) => {
+  const [name, setName] = useState("");
+  const [picked, setPicked] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { errors },
-  } = useForm<FieldValues>({
-    defaultValues: {
-      name: "",
-      members: [],
-    },
-  });
+  const [showValidation, setShowValidation] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const members = watch("members");
+  if (!isOpen) return null;
 
-  const onSubmit: SubmitHandler<FieldValues> = (data) => {
+  const togglePick = (user: User) => {
+    setPicked((current) =>
+      current.some((u) => u.id === user.id)
+        ? current.filter((u) => u.id !== user.id)
+        : [...current, user]
+    );
+  };
+
+  const close = () => {
+    setName("");
+    setPicked([]);
+    setShowValidation(false);
+    onClose();
+  };
+
+  const hasRequiredValues = name.trim().length > 0 && picked.length >= 2;
+  const canCreate = hasRequiredValues && !isLoading;
+
+  const createGroup = () => {
+    if (!canCreate) {
+      setShowValidation(true);
+      if (!name.trim()) {
+        requestAnimationFrame(() => nameInputRef.current?.focus());
+      }
+      return;
+    }
+
     setIsLoading(true);
 
     axios
       .post("/api/conversations", {
-        ...data,
+        name: name.trim(),
         isGroup: true,
+        members: picked.map((u) => ({ value: u.id })),
       })
-      .then(() => {
-        router.refresh();
-        onClose();
-      })
+      .then(() => close())
       .catch(() => toast.error("Something went wrong."))
       .finally(() => setIsLoading(false));
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
-      <form noValidate onSubmit={handleSubmit(onSubmit)}>
-        <div className="space-y-12">
-          <div className="border-b border-e-gray-900/10 pb-12">
-            <h2 className="text-base font-semibold leading-7 text-gray-900">
-              Create a group chat
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-gray-600">
-              Create a chat with more than 2 people.
-            </p>
+    <div
+      role="presentation"
+      onClick={close}
+      className="gm-glass3"
+      style={{ position: "absolute", inset: 0, zIndex: 23, display: "grid", placeItems: "center", padding: 24, background: "var(--scrim)" }}
+    >
+      <form
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          createGroup();
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="New group"
+        onClick={(e) => e.stopPropagation()}
+        className="gm-glass2"
+        style={{ width: "100%", maxWidth: 420, maxHeight: "100%", display: "flex", flexDirection: "column", borderRadius: 22, boxShadow: "var(--e2), inset 0 1px 0 var(--hi)", overflow: "hidden" }}
+      >
+        <div style={{ flex: "none", padding: "20px 20px 14px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <h2 style={{ margin: 0, fontSize: 19, fontWeight: 600, letterSpacing: "-0.015em" }}>New group</h2>
+            <button type="button" aria-label="Close" onClick={close} className="gm-icon-btn" style={{ width: 32, height: 32 }}>
+              <HiXMark size={16} />
+            </button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="group-name" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Group name</label>
+            <input
+              ref={nameInputRef}
+              id="group-name"
+              type="text"
+              autoComplete="off"
+              required
+              aria-invalid={showValidation && !name.trim()}
+              aria-describedby={showValidation && !name.trim() ? "group-name-error" : undefined}
+              placeholder="Thursday dinner"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setShowValidation(false);
+              }}
+              style={{ height: 38, padding: "0 12px", border: "none", borderRadius: 10, background: "var(--bub-in)", color: "var(--t1)", fontSize: 14, outline: "none", boxShadow: "inset 0 0 0 0.5px var(--hair)" }}
+            />
+            {showValidation && !name.trim() && (
+              <span id="group-name-error" role="alert" style={{ fontSize: 12, color: "#c73e43" }}>
+                Name is required.
+              </span>
+            )}
+          </div>
+          <span id="group-members-label" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Add people</span>
+          {showValidation && picked.length < 2 && (
+            <span id="group-members-error" role="alert" style={{ fontSize: 12, color: "#c73e43" }}>
+              Select at least two people.
+            </span>
+          )}
+        </div>
+        <div role="group" aria-labelledby="group-members-label" aria-describedby={showValidation && picked.length < 2 ? "group-members-error" : undefined} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {users.map((p) => {
+            const isPicked = picked.some((u) => u.id === p.id);
 
-            <div className="mt-10 flex flex-col gap-y-8">
-              <Input
-                register={register}
-                label="Name"
-                id="name"
-                autoComplete="off"
-                disabled={isLoading}
-                errors={errors}
-                required
-              />
-
-              <Select
-                disabled={isLoading}
-                label="Members"
-                options={users.map((user) => ({
-                  value: user.id,
-                  label: user.name,
-                }))}
-                onChange={(value) =>
-                  setValue("members", value, {
-                    shouldValidate: true,
-                  })
-                }
-                value={members}
-              />
-            </div>
+            return (
+              <button
+                key={p.id}
+                type="button"
+                aria-pressed={isPicked}
+                onClick={() => togglePick(p)}
+                className="gm-row"
+                style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12, padding: "9px 8px", border: "none", borderRadius: 10, background: isPicked ? "var(--sel)" : "transparent", textAlign: "left", cursor: "pointer" }}
+              >
+                <Avatar user={p} size={36} />
+                <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 500 }}>{p.name}</span>
+                  <span style={{ fontSize: 12, color: "var(--t3)" }}>{p.email}</span>
+                </span>
+                <span
+                  aria-hidden
+                  style={{ width: 20, height: 20, borderRadius: 6, background: isPicked ? "var(--accent)" : "transparent", color: "#fff", display: "grid", placeItems: "center", boxShadow: "inset 0 0 0 1.5px var(--hair)" }}
+                >
+                  {isPicked && <HiCheck size={14} />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ flex: "none", padding: "12px 20px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, boxShadow: "inset 0 1px 0 var(--hair)" }}>
+          <span style={{ fontSize: 12, color: "var(--t3)" }}>{picked.length} selected</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" onClick={close} style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 10, background: "var(--hover)", color: "var(--t1)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 10, background: isLoading ? "var(--hover)" : "var(--accent)", color: isLoading ? "var(--t3)" : "#fff", fontSize: 13, fontWeight: 600, cursor: isLoading ? "default" : "pointer" }}
+            >
+              Create group
+            </button>
           </div>
         </div>
-
-        <div className="mt-6 flex items-center justify-end gap-x-6">
-          <Button
-            disabled={isLoading}
-            onClick={onClose}
-            type="button"
-            secondary
-          >
-            Cancel
-          </Button>
-          <Button disabled={isLoading} type="submit">
-            Create
-          </Button>
-        </div>
       </form>
-    </Modal>
+    </div>
   );
 };
 

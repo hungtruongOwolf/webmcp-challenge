@@ -1,83 +1,248 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import type { FieldValues, SubmitHandler } from "react-hook-form";
+import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
-import { CldUploadButton } from "next-cloudinary";
-import { HiPaperAirplane, HiPhoto } from "react-icons/hi2";
+import type { FieldValues, SubmitHandler } from "react-hook-form";
+import { HiPaperAirplane, HiOutlinePhoto, HiOutlinePaperClip } from "react-icons/hi2";
 
 import useConversation from "@/app/hooks/use-conversation";
-import MessageInput from "./message-input";
-import { useEffect, useState } from "react";
+import { createClient } from "@/app/libs/supabase/client";
+import { uploadChatImage, uploadChatFile } from "@/app/libs/supabase/upload";
+import { useCurrentUser } from "@/app/context/current-user-context";
+
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 const Form = () => {
   const { conversationId } = useConversation();
-  const [isLoading, setIsLoading] = useState(true);
+  const currentUser = useCurrentUser();
+  const [draft, setDraft] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-  } = useForm<FieldValues>({
-    defaultValues: {
-      message: "",
-    },
+  const { handleSubmit, reset } = useForm<FieldValues>({
+    defaultValues: { message: "" },
   });
 
+  // Seeds the input with whatever draft_message (the WebMCP tool) last saved
+  // for this conversation -- otherwise a drafted reply never surfaces here.
+  // Clearing synchronously (not waiting for the fetch below) matters: without
+  // it, switching conversations fast and hitting Enter before the fetch
+  // resolves would send the PREVIOUS conversation's leftover draft text into
+  // the new one.
   useEffect(() => {
-    setIsLoading(false);
-  }, []);
+    setDraft("");
+    if (!conversationId || !currentUser) return;
 
-  if (isLoading) return null;
+    let cancelled = false;
+    const supabase = createClient();
 
-  const onSubmit: SubmitHandler<FieldValues> = (data) => {
-    setValue("message", "", { shouldValidate: true });
-    axios.post("/api/messages", {
-      ...data,
-      conversationId,
-    });
+    supabase
+      .from("drafts")
+      .select("body")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", currentUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setDraft(data?.body ?? "");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, currentUser]);
+
+  const onSubmit: SubmitHandler<FieldValues> = async () => {
+    const message = draft.trim();
+    if (!message) return;
+
+    setDraft("");
+    reset();
+
+    try {
+      // The realtime subscription in Thread picks this up for everyone,
+      // including the sender -- no local state update needed here.
+      await axios.post("/api/messages", { message, conversationId });
+    } catch {
+      toast.error("Couldn't send that message.");
+      setDraft(message);
+      return;
+    }
+
+    if (currentUser) {
+      createClient()
+        .from("drafts")
+        .delete()
+        .eq("conversation_id", conversationId)
+        .eq("user_id", currentUser.id)
+        .eq("body", message)
+        .then(() => {});
+    }
   };
 
-  const handleUpload = (result: any) => {
-    axios.post("/api/messages", {
-      image: result?.info?.secure_url,
-      conversationId,
-    });
+  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !conversationId) return;
+
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error("Images are limited to 4 MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const image = await uploadChatImage(supabase, conversationId, file);
+      await axios.post("/api/messages", { image, conversationId });
+    } catch {
+      toast.error("Couldn't upload that image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !conversationId) return;
+
+    if (file.size > MAX_FILE_BYTES) {
+      toast.error("Files are limited to 20 MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const fileUrl = await uploadChatFile(supabase, conversationId, file);
+      await axios.post("/api/messages", {
+        conversationId,
+        fileUrl,
+        fileName: file.name,
+        fileSize: file.size,
+      });
+    } catch {
+      toast.error("Couldn't upload that file.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
-    <div className="py-4 px-4 bg-white border-t flex items-center gap-2 lg:gap-4 w-full">
-      <CldUploadButton
-        options={{
-          maxFiles: 1,
-          maxFileSize: 4000000, // 4 mb
-        }}
-        onUpload={handleUpload}
-        uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_PRESET}
-      >
-        <HiPhoto size={30} className="text-sky-500" />
-      </CldUploadButton>
-
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        className="flex items-center gap-2 lg:gap-4 w-full"
-      >
-        <MessageInput
-          id="message"
-          register={register}
-          errors={errors}
-          required
-          placeholder="Type a message..."
+    <div
+      className="gm-glass2"
+      style={{
+        flex: "none",
+        padding: "12px 20px 16px",
+        display: "flex",
+        justifyContent: "center",
+        boxShadow: "inset 0 1px 0 var(--hi), 0 -1px 0 var(--hair)",
+        zIndex: 3,
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 760, display: "flex", alignItems: "flex-end", gap: 10 }}>
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          hidden
+          onChange={onPickImage}
         />
-
         <button
-          type="submit"
-          className="rounded-full p-2 bg-sky-500 cursor-pointer hover:bg-sky-600 transition"
+          type="button"
+          aria-label="Send a photo"
+          disabled={uploading}
+          onClick={() => imageInputRef.current?.click()}
+          className="gm-icon-btn"
+          style={{
+            flex: "none",
+            width: 44,
+            height: 44,
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "inset 0 0 0 0.5px var(--hair)",
+            opacity: uploading ? 0.6 : 1,
+          }}
         >
-          <HiPaperAirplane size={18} className="text-white" />
+          <HiOutlinePhoto size={19} />
         </button>
-      </form>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+          hidden
+          onChange={onPickFile}
+        />
+        <button
+          type="button"
+          aria-label="Attach a file"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          className="gm-icon-btn"
+          style={{
+            flex: "none",
+            width: 44,
+            height: 44,
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "inset 0 0 0 0.5px var(--hair)",
+            opacity: uploading ? 0.6 : 1,
+          }}
+        >
+          <HiOutlinePaperClip size={19} />
+        </button>
+
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-end", gap: 10 }}
+        >
+          <input
+            type="text"
+            aria-label="Type a message"
+            placeholder="Type a message..."
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: 44,
+              padding: "0 14px",
+              border: "none",
+              borderRadius: 10,
+              background: "var(--bub-in)",
+              color: "var(--t1)",
+              fontSize: 15,
+              fontWeight: 400,
+              outline: "none",
+              boxShadow: "inset 0 0 0 0.5px var(--hair)",
+            }}
+          />
+          <button
+            type="submit"
+            aria-label="Send message"
+            disabled={!draft.trim()}
+            style={{
+              flex: "none",
+              width: 44,
+              height: 44,
+              border: "none",
+              borderRadius: 10,
+              background: draft.trim() ? "var(--accent)" : "var(--hover)",
+              color: draft.trim() ? "#fff" : "var(--t3)",
+              display: "grid",
+              placeItems: "center",
+              cursor: draft.trim() ? "pointer" : "default",
+            }}
+          >
+            <HiPaperAirplane size={19} />
+          </button>
+        </form>
+      </div>
     </div>
   );
 };
