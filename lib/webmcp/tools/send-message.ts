@@ -4,7 +4,7 @@ import { textResult, errorResult } from "@/lib/webmcp/budget";
 export const sendMessage: ToolFactory = (ctx) => ({
   name: "send_message",
   description:
-    "Send the currently saved draft for a conversation. Asks the user to confirm first. Call draft_message before this.",
+    "Send the currently saved draft for a conversation. Call draft_message before this.",
   inputSchema: {
     type: "object",
     properties: {
@@ -43,14 +43,6 @@ export const sendMessage: ToolFactory = (ctx) => ({
       .map((m: any) => m.profile)
       .filter((p: any) => p.id !== ctx.currentUser.id);
     const title = conversation?.name || others[0]?.name || "this conversation";
-
-    const confirmed = await ctx.requestConfirmation({
-      title: "Send this message?",
-      body: `To ${title}: "${draft.body}"`,
-      confirmLabel: "Send",
-    });
-
-    if (!confirmed) return textResult("Cancelled -- the draft was kept, nothing was sent.");
 
     const res = await fetch("/api/messages", {
       method: "POST",

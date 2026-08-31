@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
@@ -10,12 +10,14 @@ import { HiPaperAirplane, HiOutlinePhoto, HiOutlinePaperClip } from "react-icons
 import useConversation from "@/app/hooks/use-conversation";
 import { createClient } from "@/app/libs/supabase/client";
 import { uploadChatImage, uploadChatFile } from "@/app/libs/supabase/upload";
+import { useCurrentUser } from "@/app/context/current-user-context";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 const Form = () => {
   const { conversationId } = useConversation();
+  const currentUser = useCurrentUser();
   const [draft, setDraft] = useState("");
   const [uploading, setUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -24,6 +26,29 @@ const Form = () => {
   const { handleSubmit, reset } = useForm<FieldValues>({
     defaultValues: { message: "" },
   });
+
+  // Seeds the input with whatever draft_message (the WebMCP tool) last saved
+  // for this conversation -- otherwise a drafted reply never surfaces here.
+  useEffect(() => {
+    if (!conversationId || !currentUser) return;
+
+    let cancelled = false;
+    const supabase = createClient();
+
+    supabase
+      .from("drafts")
+      .select("body")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", currentUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setDraft(data?.body ?? "");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, currentUser]);
 
   const onSubmit: SubmitHandler<FieldValues> = () => {
     const message = draft.trim();
@@ -35,6 +60,15 @@ const Form = () => {
     // The realtime subscription in Thread picks this up for everyone,
     // including the sender -- no local state update needed here.
     axios.post("/api/messages", { message, conversationId });
+
+    if (currentUser) {
+      createClient()
+        .from("drafts")
+        .delete()
+        .eq("conversation_id", conversationId)
+        .eq("user_id", currentUser.id)
+        .then(() => {});
+    }
   };
 
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
