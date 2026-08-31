@@ -150,6 +150,7 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                   <div
                     style={{
                       gridColumn: 2,
+                      width: "100%",
                       minWidth: 0,
                       display: "flex",
                       flexDirection: "column",
