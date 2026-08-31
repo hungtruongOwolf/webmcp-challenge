@@ -3,6 +3,7 @@ import {
   buildPasskeyEnrollmentPath,
   sanitizeAuthReturnPath,
 } from "@/app/libs/auth/return-path";
+import { FOCUS_AFTER_AUTH_COOKIE_NAME } from "@/app/libs/auth/focus-after-auth";
 import { createClient } from "@/app/libs/supabase/server";
 
 export async function GET(request: Request) {
@@ -18,7 +19,14 @@ export async function GET(request: Request) {
       const destination = enrollPasskey
         ? buildPasskeyEnrollmentPath(returnPath)
         : returnPath;
-      return NextResponse.redirect(new URL(destination, url.origin));
+      const response = NextResponse.redirect(new URL(destination, url.origin));
+      response.cookies.set(FOCUS_AFTER_AUTH_COOKIE_NAME, "1", {
+        path: "/",
+        maxAge: 60,
+        sameSite: "lax",
+        secure: url.protocol === "https:",
+      });
+      return response;
     }
   }
 

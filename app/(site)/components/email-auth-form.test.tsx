@@ -221,7 +221,31 @@ describe("EmailAuthForm", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "The email or password was not recognized."
     );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The email or password was not recognized."
+    );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
     expect(screen.queryByText("raw provider detail")).not.toBeInTheDocument();
+  });
+
+  it("focuses a normalized alert when an email-link request fails", async () => {
+    const user = userEvent.setup();
+    const sendEmailLink = vi.fn(async () => ({
+      ok: false as const,
+      code: "EMAIL_LINK_FAILED" as const,
+    }));
+    renderForm({ gateway: createGateway({ sendEmailLink }) });
+
+    await user.type(screen.getByLabelText("Email"), "reader@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Email me a sign-in link" })
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "We could not send the sign-in link. Try again."
+    );
+    await waitFor(() => expect(alert).toHaveFocus());
   });
 
   it("offers passkey enrollment after registration with a session", async () => {

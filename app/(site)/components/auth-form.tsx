@@ -34,10 +34,12 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
   const [variant, setVariant] = useState<Variant>("LOGIN");
   const [isPending, setIsPending] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
   const submissionLockRef = useRef(false);
   const gatewayRef = useRef<AuthGateway | null>(null);
   const passkeyButtonRef = useRef<HTMLButtonElement>(null);
   const callbackAlertRef = useRef<HTMLDivElement>(null);
+  const operationAlertRef = useRef<HTMLDivElement>(null);
   const destination = sanitizeAuthReturnPath(returnPath);
 
   const getGateway = () => {
@@ -72,6 +74,12 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     return () => cancelAnimationFrame(frame);
   }, [callbackError, readiness.status]);
 
+  useEffect(() => {
+    if (!operationError) return;
+    const frame = requestAnimationFrame(() => operationAlertRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [operationError]);
+
   const toggleVariant = useCallback(() => {
     if (submissionLockRef.current) return;
     setVariant((current) => (current === "LOGIN" ? "REGISTER" : "LOGIN"));
@@ -89,6 +97,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
 
   const signInWithPasskey = async () => {
     if (!startSubmission()) return;
+    setOperationError(null);
     beginAuthentication();
     const result = await getGateway().signInWithPasskey();
     endSubmission();
@@ -98,9 +107,12 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
       return;
     }
 
-    returnToSignedOut(authFailureMessage(result.code));
+    const message = authFailureMessage(result.code);
+    returnToSignedOut(message);
     if (result.code === "PASSKEY_CANCELLED") {
       requestAnimationFrame(() => passkeyButtonRef.current?.focus());
+    } else {
+      setOperationError(message);
     }
   };
 
@@ -129,17 +141,38 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
               </div>
             )}
 
-            {readiness.status === "ready" ? (
-              <button
-                ref={passkeyButtonRef}
-                type="button"
-                onClick={signInWithPasskey}
-                disabled={isPending}
-                className="mb-6 flex w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50"
+            {operationError && (
+              <div
+                ref={operationAlertRef}
+                role="alert"
+                tabIndex={-1}
+                className="mb-6 rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
               >
-                <HiOutlineFingerPrint size={20} aria-hidden />
-                Sign in with a passkey
-              </button>
+                {operationError}
+              </div>
+            )}
+
+            {readiness.status === "ready" ? (
+              <>
+                <button
+                  ref={passkeyButtonRef}
+                  type="button"
+                  onClick={signInWithPasskey}
+                  disabled={isPending}
+                  aria-describedby="passkey-method-description"
+                  className="mb-2 flex w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50"
+                >
+                  <HiOutlineFingerPrint size={20} aria-hidden />
+                  Sign in with a passkey
+                </button>
+                <p
+                  id="passkey-method-description"
+                  className="mb-6 text-sm text-gray-600"
+                >
+                  Your operating system may offer a fingerprint, face, device
+                  PIN, password manager, or hardware security key.
+                </p>
+              </>
             ) : (
               <p className="mb-6 text-sm text-gray-600">{readiness.message}</p>
             )}

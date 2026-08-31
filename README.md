@@ -133,7 +133,7 @@ messenger-clone/
 2. Clone this repository to your local computer.
 3. Copy `.env.example` to `.env` and provide the database, Cloudinary, Pusher, and Supabase project values. `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` identify the Supabase project; the anon key is public and relies on row-level security.
 4. Set `NEXT_PUBLIC_APP_ORIGIN` to the exact site origin and `NEXT_PUBLIC_PASSKEY_RP_ID` to that origin's hostname. Local development may use `http://localhost:3000` and `localhost`.
-5. Run `npm install`, then `npm run verify:passkey-config`.
+5. Run `npm install --legacy-peer-deps`, then `npm run verify:passkey-config`.
 6. Start the application with `npm run dev`.
 
 ### Authentication and WebMCP security

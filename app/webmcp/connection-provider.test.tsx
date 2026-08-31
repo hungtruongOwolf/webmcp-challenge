@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WebMCPModelContext, WebMCPTool } from "./browser-api";
@@ -29,10 +31,14 @@ const ConnectionProbe = () => {
 };
 
 const createFakeModelContext = () => {
-  const registrations: Array<{ name: string; aborted: boolean }> = [];
+  const registrations: Array<{
+    name: string;
+    tool: WebMCPTool;
+    aborted: boolean;
+  }> = [];
   const context: WebMCPModelContext = {
     registerTool: async (tool, options) => {
-      const registration = { name: tool.name, aborted: false };
+      const registration = { name: tool.name, tool, aborted: false };
       registrations.push(registration);
       options?.signal?.addEventListener(
         "abort",
@@ -49,6 +55,7 @@ const createFakeModelContext = () => {
     abortedRegistrationCount: () =>
       registrations.filter((item) => item.aborted).length,
     registrationCount: () => registrations.length,
+    activeTools: () => registrations.filter((item) => !item.aborted),
   });
 };
 
@@ -61,7 +68,12 @@ const createStubTool = (name: string): WebMCPTool => ({
 });
 
 const lifecycleTestRegistry: WebMCPToolRegistry = {
-  getPublicTools: () => [createStubTool("get_connection_status")],
+  getPublicTools: ({ getSnapshot }) => [
+    {
+      ...createStubTool("get_connection_status"),
+      execute: async () => JSON.stringify(getSnapshot()),
+    },
+  ],
   getAuthenticatedTools: () => [
     createStubTool("get_connection_status"),
     createStubTool("test_authenticated_messenger_action"),
@@ -71,6 +83,42 @@ const lifecycleTestRegistry: WebMCPToolRegistry = {
 describe("WebMCPConnectionProvider", () => {
   beforeEach(() => {
     navigation.pathname = "/conversations";
+  });
+
+  it("server-renders and hydrates an authenticated session without signed-out state", async () => {
+    const modelContext = createFakeModelContext();
+    const tree = (
+      <WebMCPConnectionProvider
+        modelContext={modelContext}
+        currentUserId="server-validated-user"
+        registry={lifecycleTestRegistry}
+      >
+        <ConnectionProbe />
+      </WebMCPConnectionProvider>
+    );
+    const serverHtml = renderToString(tree);
+
+    expect(serverHtml).toContain("Signed in. Connecting Messenger…");
+    expect(serverHtml).not.toContain("Sign in required.");
+
+    const container = document.createElement("div");
+    container.innerHTML = serverHtml;
+    document.body.append(container);
+    const observedText: string[] = [];
+    const observer = new MutationObserver(() => {
+      observedText.push(container.textContent ?? "");
+    });
+    observer.observe(container, { childList: true, subtree: true });
+
+    const root = hydrateRoot(container, tree);
+    await waitFor(() =>
+      expect(container).toHaveTextContent("Signed in. Messenger connected.")
+    );
+    observer.disconnect();
+
+    expect(observedText).not.toContain(expect.stringContaining("Sign in required."));
+    root.unmount();
+    container.remove();
   });
 
   it("replaces public tools with authenticated tools and aborts on sign-out", async () => {
@@ -406,8 +454,22 @@ describe("WebMCPConnectionProvider", () => {
       "href",
       "/?next=%2Fconversations"
     );
-    expect(modelContext.activeNames()).toEqual([]);
-    expect(modelContext.registrationCount()).toBe(2);
+    await waitFor(() =>
+      expect(modelContext.activeNames()).toEqual(["get_connection_status"])
+    );
+    expect(modelContext.registrationCount()).toBe(3);
+
+    const [publicStatus] = modelContext.activeTools();
+    const payload = await publicStatus.tool.execute(
+      {},
+      { signal: new AbortController().signal }
+    );
+    expect(JSON.parse(payload)).toEqual({
+      authenticated: false,
+      state: "SESSION_EXPIRED",
+      route: "/conversations",
+      nextAction: "sign_in_on_page",
+    });
 
     fireEvent.click(
       screen.getByRole("button", { name: "Begin authentication" })

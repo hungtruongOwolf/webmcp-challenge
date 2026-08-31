@@ -107,6 +107,17 @@ const connectionStatus = async (page: Page) =>
     return JSON.parse(output) as Record<string, unknown>;
   });
 
+const expectNoSeriousAxeViolations = async (page: Page) => {
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+    .analyze();
+  expect(
+    results.violations.filter(
+      ({ impact }) => impact === "serious" || impact === "critical"
+    )
+  ).toEqual([]);
+};
+
 const signInWithPassword = async (page: Page) => {
   await page.goto("/");
   await page.getByLabel("Email").fill(email);
@@ -146,14 +157,11 @@ test("signed-out authentication is keyboard accessible and has no serious axe vi
   expect(focusStyle.outlineStyle).not.toBe("none");
   expect(focusStyle.outlineWidth).not.toBe("0px");
 
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .analyze();
-  expect(
-    results.violations.filter(
-      ({ impact }) => impact === "serious" || impact === "critical"
-    )
-  ).toEqual([]);
+  await expectNoSeriousAxeViolations(page);
+
+  await page.getByRole("button", { name: "Sign in with password" }).click();
+  await expect(page.getByRole("alert")).toBeFocused();
+  await expectNoSeriousAxeViolations(page);
 });
 
 test("public connection status is signed out and contains no identity or token data", async ({
@@ -187,6 +195,7 @@ test("password sign-in focuses Conversations, announces connection, and authenti
     authenticated: true,
     state: "CONNECTED",
   });
+  await expectNoSeriousAxeViolations(page);
 });
 
 test("logout aborts the authenticated registration before restoring the public status tool", async ({
@@ -272,6 +281,7 @@ test("logout aborts the authenticated registration before restoring the public s
         "register:replacement",
       ],
     });
+  await expectNoSeriousAxeViolations(page);
 });
 
 test("Messenger remains operable after sign-in without the browser WebMCP API", async ({
@@ -289,6 +299,7 @@ test("Messenger remains operable after sign-in without the browser WebMCP API", 
     })
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Chat" })).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
 });
 
 test("protected passkey enrollment exposes keyboard controls and skip uses a validated destination", async ({
@@ -306,6 +317,7 @@ test("protected passkey enrollment exposes keyboard controls and skip uses a val
   await expect(enroll).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(skip).toBeFocused();
+  await expectNoSeriousAxeViolations(page);
 
   await skip.press("Enter");
   await expect(page).toHaveURL(/\/users$/);
