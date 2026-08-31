@@ -15,10 +15,13 @@
   "author": {
     "name": "hungtruongOwolf"
   },
-  "description": "A WebMCP-native real-time Messenger clone -- an AI agent can drive the chat UI on the signed-in user's behalf.",
+  "description": "Verb -- nouns need eyes, verbs need a voice. A real-time messenger where every action is also a WebMCP tool, so a blind or low-vision user can fully operate it by talking to an AI agent.",
   "keywords": [
     "webmcp",
     "model-context-protocol",
+    "accessibility",
+    "screen reader",
+    "voice agent",
     "nextjs",
     "react",
     "typescript",
@@ -26,8 +29,7 @@
     "realtime",
     "chat app",
     "passkeys",
-    "webauthn",
-    "accessibility"
+    "webauthn"
   ],
   "license": "MIT",
   "repository": {

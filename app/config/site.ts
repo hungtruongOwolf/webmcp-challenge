@@ -1,12 +1,15 @@
 import { Metadata } from "next";
 
 export const siteConfig: Metadata = {
-  title: "Messenger Clone",
+  title: "Verb",
   description:
-    "A WebMCP-native real-time Messenger clone -- an AI agent can drive the chat UI on the signed-in user's behalf.",
+    "Nouns need eyes. Verbs need a voice. A real-time messenger where every action is also a WebMCP tool, so a blind or low-vision user can fully operate it by talking to an AI agent.",
   keywords: [
     "webmcp",
     "model-context-protocol",
+    "accessibility",
+    "screen reader",
+    "voice agent",
     "nextjs",
     "react",
     "typescript",
@@ -15,7 +18,6 @@ export const siteConfig: Metadata = {
     "chat app",
     "passkeys",
     "webauthn",
-    "accessibility",
   ] as Array<string>,
   authors: {
     name: "hungtruongOwolf",

@@ -1,13 +1,14 @@
 <a name="readme-top"></a>
 
-# Messenger Clone — a WebMCP-native chat app
+# Verb
 
-A real-time Messenger-style chat app where an AI agent can drive the UI on the
-signed-in user's behalf through [WebMCP](https://github.com/webmachinelearning/webmcp)
-(`document.modelContext`) — read conversations, send messages, react, send
-stickers, summarize a whole thread, search, create groups — the same way a
-sighted user would click through the app, except entirely through natural
-language, in the browser tab the user is already signed into.
+**Nouns need eyes. Verbs need a voice.**
+
+A real-time messaging app where every meaningful action is also a
+[WebMCP](https://github.com/webmachinelearning/webmcp) tool
+(`document.modelContext`) — so a blind or low-vision user can fully operate
+it by talking to an AI agent (ChatGPT Voice, in the desktop app's built-in
+browser) instead of needing to see or parse a screen.
 
 **Live app:** https://messenger-clone-kappa-smoky.vercel.app
 **Repo:** https://github.com/hungtruongOwolf/webmcp-challenge
@@ -19,35 +20,45 @@ language, in the browser tab the user is already signed into.
 <details>
 <summary><h2 style="display:inline">Table of Contents</h2></summary>
 
-- [What this is](#what-this-is)
+- [The problem](#the-problem)
+- [The idea](#the-idea)
 - [Chat features](#chat-features)
 - [WebMCP agent tools](#webmcp-agent-tools)
+- [Security model](#security-model)
 - [Architecture](#architecture)
 - [Getting started](#getting-started)
 - [Testing](#testing)
 - [Folder structure](#folder-structure)
-- [Tech stack](#tech-stack)
 - [Credits](#credits)
 
 </details>
 
-## What this is
+## The problem
 
-This started from an open-source Messenger clone tutorial (MongoDB + Prisma +
-NextAuth + Pusher + Cloudinary) and was rebuilt for the WebMCP Challenge: the
-data layer moved onto a single Supabase project (Postgres + row-level
-security + Realtime + Storage), auth became passkey-first for a
-click-once/tap-once sign-in that works well for voice and accessibility
-tooling, and a full agent tool layer was added on top so an AI agent (ChatGPT
-Desktop, Claude, or anything else that speaks WebMCP) can actually use the
-app instead of just describing it.
+A web app's interface is a visual surface — buttons, avatars, a message
+list — built to be seen. A blind or low-vision person either fights it
+through a screen reader reading out a DOM that was never designed for that,
+or hands an AI agent their password/session so it can "drive the browser" on
+their behalf, which means trusting that agent with full account access and
+hoping it clicks the right pixels. Neither is actually accessible; the
+second one isn't even safe.
 
-The tool layer is scoped tightly: every tool call runs against the signed-in
-user's own Supabase session (RLS-enforced, never a service key), destructive
-actions (deleting/leaving a conversation) require a second, explicit
-`confirm: true` call instead of popping an in-page dialog nobody watching a
-voice session could click, and every response is clamped to a small character
-budget so it fits comfortably in an agent's context.
+## The idea
+
+**Verb** is an ordinary, fully-featured real-time messenger — but every
+action a sighted user could take (send a message, react, search, join a
+group, catch up on a conversation) is *also* declared as a structured tool
+the page exposes to an agent via WebMCP, right inside the user's own
+already-authenticated session. The user signs in once with a passkey — no
+password to type or read aloud — and from there just talks: "read me my
+messages," "reply saying I'll be there at 7," "what's in that photo Grace
+sent," "catch me up on the whole group chat." The agent calls the app's own
+tools directly, on explicit intent and schema, instead of guessing at pixels
+or screen-reader output — and it never sees a credential, because it never
+needs one.
+
+Nouns — photos, files, a wall of text — still need eyes, or a description.
+Verbs don't. They just need a voice.
 
 ## Chat features
 
@@ -78,7 +89,7 @@ budget so it fits comfortably in an agent's context.
 | `draft_message` | Stage a reply without sending it |
 | `send_message` | Send a message (two-call pattern with `draft_message`) |
 | `delete_conversation` | Leave a conversation, or delete it if you're the last member |
-| `describe_image` | Vision-model description of a shared photo |
+| `describe_image` | Vision-model description of a shared photo -- the core accessibility feature |
 | `read_file` | Read the contents of a shared file |
 | `read_link` | Fetch and summarize a URL shared in chat |
 | `sign_out` | End the session |
@@ -88,21 +99,34 @@ budget so it fits comfortably in an agent's context.
 | `summarize_conversation` | One coherent narrative summary, read + unread combined |
 
 Every tool response goes through a shared budget clamp (`lib/webmcp/budget.ts`)
-so nothing blows past what an agent should reasonably read back.
+so nothing blows past what an agent should reasonably read back, and
+destructive actions (leaving/deleting a conversation) require a second,
+explicit `confirm: true` call rather than popping an in-page dialog nobody
+watching a voice session could click.
+
+## Security model
+
+WebMCP tools execute in-browser under the signed-in user's real Supabase
+session — never a service key, never a credential handed to the agent.
+**Postgres row-level security is the actual trust boundary**, not the
+agent's good behavior: even a fully prompt-injected agent (the demo seeds a
+message containing an injected instruction the agent must read but not obey)
+cannot read or write anything the signed-in user's own RLS policies don't
+already allow.
 
 ## Architecture
 
 - **Next.js 15 App Router, React 19, TypeScript, Tailwind.**
 - **Supabase Postgres** is the only backend: schema + row-level security in
-  `supabase/migrations/`. Authorization lives entirely in RLS policies (plus a
-  handful of `SECURITY DEFINER` RPCs for operations that need to see across a
-  membership boundary, like creating a conversation or leaving one) — server
-  code queries with the user's own session, never a service key.
+  `supabase/migrations/`. A handful of `SECURITY DEFINER` RPCs handle
+  operations that need to see across a membership boundary (creating a
+  conversation, leaving one) — everything else queries with the user's own
+  session.
 - **Realtime** is DB-trigger-driven: triggers call
-  `realtime.broadcast_changes(...)` on `conversation:<uuid>` (everyone in that
-  conversation) and `user:<uuid>` (one user's own sidebar/inbox) topics, so
-  the UI updates from the database, not from the API route that happened to
-  handle the write.
+  `realtime.broadcast_changes(...)` on `conversation:<uuid>` (everyone in
+  that conversation) and `user:<uuid>` (one user's own sidebar/inbox) topics,
+  so the UI updates from the database, not from whichever API route happened
+  to handle the write.
 - **Storage** (`chat-images`, `chat-files`, `avatars`) is three private
   buckets; the app hands out long-lived signed URLs rather than making
   anything public, with folder-scoped RLS as the real access boundary.
@@ -170,11 +194,6 @@ messenger-clone/
   docs/superpowers/          original accessible-auth design/plan docs
   e2e/, tests/               Playwright spec, Vitest setup
 ```
-
-## Tech stack
-
-Next.js · React · TypeScript · Tailwind CSS · Supabase (Postgres, Auth,
-Realtime, Storage) · Vercel · Vitest · Playwright
 
 ## Credits
 
