@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Roomlight">
+  <mask id="gapFav" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32">
+    <rect width="32" height="32" fill="#fff"></rect>
+    <rect x="10" y="4" width="19" height="19" rx="6" transform="rotate(14 19.5 13.5)" fill="#000" stroke="#000" stroke-width="2.2"></rect>
+  </mask>
+  <rect x="2" y="9" width="19" height="19" rx="6" transform="rotate(-22 11.5 18.5)" fill="#A85138" mask="url(#gapFav)"></rect>
+  <rect x="10" y="4" width="19" height="19" rx="6" transform="rotate(14 19.5 13.5)" fill="#2E7F88"></rect>
+</svg>

@@ -1,7 +1,6 @@
 "use client";
 
 import { Be_Vietnam_Pro } from "next/font/google";
-import Image from "next/image";
 import type { PropsWithChildren } from "react";
 import { HiMoon, HiSun } from "react-icons/hi2";
 
@@ -47,12 +46,11 @@ function ShellInner({ children }: PropsWithChildren) {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-          <Image
-            src="/images/logo.png"
+          <img
+            src={theme === "dark" ? "/images/logo-mark-dark.svg" : "/images/logo-mark.svg"}
             alt=""
             height={44}
             width={44}
-            style={{ borderRadius: 12, boxShadow: "var(--e1)" }}
           />
           <h1
             style={{
