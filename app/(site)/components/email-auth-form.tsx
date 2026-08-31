@@ -40,6 +40,7 @@ export const EmailAuthForm = ({
 }: EmailAuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
   const [focusSummaryRequested, setFocusSummaryRequested] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const {
     register,
@@ -59,10 +60,16 @@ export const EmailAuthForm = ({
     if (!focusSummaryRequested || !summaryRef.current) return;
     summaryRef.current.focus();
     setFocusSummaryRequested(false);
-  }, [errors, focusSummaryRequested]);
+  }, [errors, focusSummaryRequested, operationError]);
+
+  const focusValidationSummary = () => {
+    setOperationError(null);
+    focusSummary();
+  };
 
   const sendEmailLink = async (values: EmailAuthValues) => {
     if (!onSubmissionStart()) return;
+    setOperationError(null);
     beginAuthentication();
     const result = await gateway.sendEmailLink({
       email: values.email,
@@ -73,7 +80,10 @@ export const EmailAuthForm = ({
     onSubmissionEnd();
 
     if (!result.ok) {
-      returnToSignedOut(authFailureMessage(result.code));
+      const message = authFailureMessage(result.code);
+      returnToSignedOut(message);
+      setOperationError(message);
+      focusSummary();
       return;
     }
 
@@ -86,6 +96,7 @@ export const EmailAuthForm = ({
 
   const submitPassword = async (values: EmailAuthValues) => {
     if (!onSubmissionStart()) return;
+    setOperationError(null);
 
     if (!values.password) {
       onSubmissionEnd();
@@ -105,7 +116,10 @@ export const EmailAuthForm = ({
       });
       onSubmissionEnd();
       if (!result.ok) {
-        returnToSignedOut(authFailureMessage(result.code));
+        const message = authFailureMessage(result.code);
+        returnToSignedOut(message);
+        setOperationError(message);
+        focusSummary();
         return;
       }
       onAuthenticated();
@@ -120,7 +134,10 @@ export const EmailAuthForm = ({
     });
     onSubmissionEnd();
     if (!result.ok) {
-      returnToSignedOut(authFailureMessage(result.code));
+      const message = authFailureMessage(result.code);
+      returnToSignedOut(message);
+      setOperationError(message);
+      focusSummary();
       return;
     }
 
@@ -134,23 +151,23 @@ export const EmailAuthForm = ({
 
   const emailLinkAction = () => {
     clearErrors("password");
-    void handleSubmit(sendEmailLink, focusSummary)();
+    void handleSubmit(sendEmailLink, focusValidationSummary)();
   };
 
   return (
     <form
       noValidate
-      onSubmit={handleSubmit(submitPassword, focusSummary)}
+      onSubmit={handleSubmit(submitPassword, focusValidationSummary)}
       className="space-y-6"
     >
-      {Object.keys(errors).length > 0 && (
+      {(operationError || Object.keys(errors).length > 0) && (
         <div
           ref={summaryRef}
           role="alert"
           tabIndex={-1}
           className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
         >
-          Check the highlighted fields and try again.
+          {operationError ?? "Check the highlighted fields and try again."}
         </div>
       )}
 

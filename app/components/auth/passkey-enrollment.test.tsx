@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthGateway, AuthResult } from "@/app/libs/auth/auth-gateway";
+import { consumeFocusAfterAuth } from "@/app/libs/auth/focus-after-auth";
 import type { PasskeyReadiness } from "@/app/libs/auth/passkey-readiness";
 import { WebMCPConnectionProvider } from "@/app/webmcp/connection-provider";
 import { ConnectionStatusIndicator } from "@/app/webmcp/connection-status-indicator";
@@ -85,6 +86,7 @@ describe("PasskeyEnrollment", () => {
       status: "ready",
       message: "Passkeys are available.",
     };
+    sessionStorage.clear();
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
       callback(0);
       return 1;
@@ -155,6 +157,7 @@ describe("PasskeyEnrollment", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Passkey saved. Next time, one action."
     );
+    expect(consumeFocusAfterAuth()).toBe(true);
     expect(navigation.replace).toHaveBeenCalledWith("/conversations");
   });
 
@@ -174,7 +177,26 @@ describe("PasskeyEnrollment", () => {
       "Passkey sign-in cancelled. Choose another sign-in method when ready."
     );
     await waitFor(() => expect(setupButton).toHaveFocus());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("focuses a normalized alert when passkey enrollment fails", async () => {
+    const user = userEvent.setup();
+    const gateway = createGateway(async () => ({
+      ok: false,
+      code: "PASSKEY_FAILED",
+    }));
+    renderEnrollment(gateway);
+    await waitForProvider();
+
+    await user.click(screen.getByRole("button", { name: "Set up passkey" }));
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "The passkey could not be used. Try another sign-in method."
+    );
+    await waitFor(() => expect(alert).toHaveFocus());
   });
 
   it("lets the user continue without enrolling", async () => {
@@ -186,6 +208,7 @@ describe("PasskeyEnrollment", () => {
     await user.click(screen.getByRole("button", { name: "Maybe later" }));
 
     expect(registerPasskey).not.toHaveBeenCalled();
+    expect(consumeFocusAfterAuth()).toBe(true);
     expect(navigation.replace).toHaveBeenCalledWith("/users");
   });
 

@@ -10,6 +10,7 @@ import {
   createAuthGateway,
   type AuthGateway,
 } from "@/app/libs/auth/auth-gateway";
+import { markFocusAfterAuth } from "@/app/libs/auth/focus-after-auth";
 import { sanitizeAuthReturnPath } from "@/app/libs/auth/return-path";
 import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
 
@@ -27,7 +28,9 @@ export const PasskeyEnrollment = ({
   const readiness = usePasskeyReadiness();
   const gatewayRef = useRef<AuthGateway | null>(gateway ?? null);
   const [isBusy, setIsBusy] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
   const enrollButtonRef = useRef<HTMLButtonElement>(null);
+  const operationAlertRef = useRef<HTMLDivElement>(null);
   const destination = sanitizeAuthReturnPath(returnPath);
 
   const getGateway = () => {
@@ -39,31 +42,53 @@ export const PasskeyEnrollment = ({
     if (readiness.status !== "checking") announce(readiness.message);
   }, [announce, readiness.message, readiness.status]);
 
+  useEffect(() => {
+    if (!operationError) return;
+    const frame = requestAnimationFrame(() => operationAlertRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [operationError]);
+
   const enroll = async () => {
+    setOperationError(null);
     setIsBusy(true);
     const result = await getGateway().registerPasskey();
     setIsBusy(false);
 
     if (result.ok) {
       announce("Passkey saved. Next time, one action.");
+      markFocusAfterAuth();
       router.replace(destination);
       return;
     }
 
-    announce(authFailureMessage(result.code));
+    const message = authFailureMessage(result.code);
+    announce(message);
     if (result.code === "PASSKEY_CANCELLED") {
       requestAnimationFrame(() => enrollButtonRef.current?.focus());
+    } else {
+      setOperationError(message);
     }
   };
 
   const skip = () => {
     announce("Passkey setup skipped.");
+    markFocusAfterAuth();
     router.replace(destination);
   };
 
   return (
     <div className="mt-8 space-y-4">
       <p className="text-sm text-gray-600">{readiness.message}</p>
+      {operationError && (
+        <div
+          ref={operationAlertRef}
+          role="alert"
+          tabIndex={-1}
+          className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+        >
+          {operationError}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
           ref={enrollButtonRef}

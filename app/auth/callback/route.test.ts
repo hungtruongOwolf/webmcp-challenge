@@ -25,6 +25,13 @@ describe("GET /auth/callback", () => {
     expect(response.headers.get("location")).toBe(
       "https://messenger.example/conversations"
     );
+    expect(response.headers.get("set-cookie")).toContain(
+      "messenger_focus_after_auth=1"
+    );
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=60");
+    expect(response.headers.get("set-cookie")).toContain("Path=/");
+    expect(response.headers.get("set-cookie")).toContain("SameSite=lax");
+    expect(response.headers.get("set-cookie")).toContain("Secure");
   });
 
   it("routes new accounts through optional passkey enrollment", async () => {
@@ -35,6 +42,9 @@ describe("GET /auth/callback", () => {
     const response = await GET(request);
     expect(response.headers.get("location")).toBe(
       "https://messenger.example/auth/passkey?next=%2Fusers"
+    );
+    expect(response.headers.get("set-cookie")).toContain(
+      "messenger_focus_after_auth=1"
     );
   });
 
@@ -47,5 +57,6 @@ describe("GET /auth/callback", () => {
     expect(response.headers.get("location")).toBe(
       "https://messenger.example/?error=auth_link_invalid&next=%2Fconversations"
     );
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });

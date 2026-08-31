@@ -83,18 +83,17 @@ export const WebMCPConnectionProvider = ({
     suppliedModelContext === undefined
       ? getWebMCPModelContext()
       : suppliedModelContext;
-  const [state, dispatch] = useReducer(
-    connectionReducer,
-    initialConnectionState
-  );
-  const [message, setMessage] = useState(
-    connectionMessage(initialConnectionState)
-  );
+  const initialState: ConnectionState =
+    currentUserId === null
+      ? initialConnectionState
+      : { status: "SESSION_READY", userId: currentUserId };
+  const [state, dispatch] = useReducer(connectionReducer, initialState);
+  const [message, setMessage] = useState(() => connectionMessage(initialState));
   const [registrationAttempt, setRegistrationAttempt] = useState(0);
   const stateRef = useRef(state);
   const pathnameRef = useRef(pathname);
   const snapshotRef = useRef<ConnectionSnapshot>(
-    snapshotFor(initialConnectionState, pathname)
+    snapshotFor(initialState, pathname)
   );
   const generationRef = useRef(0);
   const activeControllerRef = useRef<AbortController | null>(null);
@@ -164,9 +163,9 @@ export const WebMCPConnectionProvider = ({
       if (currentUserId === null) {
         if (sessionExpiredRef.current) {
           signedOutAfterExpiryRef.current = true;
-          return;
+        } else {
+          transition({ type: "SIGNED_OUT" });
         }
-        transition({ type: "SIGNED_OUT" });
         if (modelContext === null) return;
 
         try {

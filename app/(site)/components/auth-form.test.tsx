@@ -127,6 +127,10 @@ describe("AuthForm", () => {
   it("puts passkey sign-in first without prompting on mount", () => {
     renderAuthForm();
 
+    const passkeyButton = screen.getByRole("button", {
+      name: "Sign in with a passkey",
+    });
+
     expect(
       screen.getAllByRole("button").map((button) => button.textContent)
     ).toEqual([
@@ -135,6 +139,9 @@ describe("AuthForm", () => {
       "Sign in with password",
       "Create an account",
     ]);
+    expect(passkeyButton).toHaveAccessibleDescription(
+      "Your operating system may offer a fingerprint, face, device PIN, password manager, or hardware security key."
+    );
     expect(boundary.gateway?.signInWithPasskey).not.toHaveBeenCalled();
   });
 
@@ -170,7 +177,29 @@ describe("AuthForm", () => {
       "Passkey sign-in cancelled. Choose another sign-in method when ready."
     );
     await waitFor(() => expect(passkey).toHaveFocus());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("focuses a normalized alert after passkey sign-in fails", async () => {
+    const user = userEvent.setup();
+    boundary.gateway = createGateway({
+      signInWithPasskey: vi.fn(async () => ({
+        ok: false as const,
+        code: "PASSKEY_FAILED" as const,
+      })),
+    });
+    renderAuthForm();
+
+    await user.click(
+      screen.getByRole("button", { name: "Sign in with a passkey" })
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "The passkey could not be used. Try another sign-in method."
+    );
+    await waitFor(() => expect(alert).toHaveFocus());
   });
 
   it("omits passkey action and explains when passkeys are unavailable", () => {
