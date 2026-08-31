@@ -18,7 +18,11 @@ const ConfirmBridgeContext = createContext<ConfirmBridgeValue | null>(null);
  * Lets non-React code (a WebMCP tool's execute()) pop the app's own confirm
  * dialog and await the answer, instead of trusting the agent to ask --
  * `requestUserInteraction()` isn't reliably implemented across agents yet,
- * so send_message / delete_conversation gate here unconditionally.
+ * so delete_conversation gates here unconditionally. send_message doesn't:
+ * draft_message + send_message already being two separate tool calls is
+ * the confirmation step, and a second in-page dialog nobody is watching
+ * (the user is talking to the agent, not the browser tab) just hangs until
+ * it times out.
  */
 export function ConfirmBridgeProvider({ children }: PropsWithChildren) {
   const [pending, setPending] = useState<PendingConfirm | null>(null);

@@ -20,22 +20,30 @@ export async function POST(
 
     if (!user) return new NextResponse("Unauthorized.", { status: 401 });
 
-    const { data: lastMessage } = await supabase
+    const { data: messages } = await supabase
       .from("messages")
       .select("id")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .eq("conversation_id", conversationId);
 
-    if (!lastMessage) return NextResponse.json({ ok: true });
+    if (!messages || messages.length === 0) return NextResponse.json({ ok: true });
+
+    const { data: seenRows } = await supabase
+      .from("message_seen")
+      .select("message_id")
+      .eq("user_id", user.id)
+      .in("message_id", messages.map((m) => m.id));
+
+    const seenIds = new Set((seenRows ?? []).map((r) => r.message_id));
+    const unseenIds = messages.map((m) => m.id).filter((id) => !seenIds.has(id));
+
+    if (unseenIds.length === 0) return NextResponse.json({ ok: true });
 
     // Idempotent: marking an already-seen message seen again is a no-op,
     // not an error, and the DB trigger only broadcasts on the first insert.
     const { error } = await supabase
       .from("message_seen")
       .upsert(
-        { message_id: lastMessage.id, user_id: user.id },
+        unseenIds.map((id) => ({ message_id: id, user_id: user.id })),
         { onConflict: "message_id,user_id", ignoreDuplicates: true }
       );
 
