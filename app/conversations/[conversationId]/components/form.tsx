@@ -11,6 +11,7 @@ import useConversation from "@/app/hooks/use-conversation";
 import { createClient } from "@/app/libs/supabase/client";
 import { uploadChatImage, uploadChatFile } from "@/app/libs/supabase/upload";
 import { useCurrentUser } from "@/app/context/current-user-context";
+import StickerPicker from "./sticker-picker";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
@@ -105,6 +106,18 @@ const Form = () => {
     }
   };
 
+  const onPickSticker = async (emoji: string) => {
+    if (!conversationId) return;
+
+    try {
+      // Realtime picks this up for everyone, including the sender -- same
+      // as onSubmit, no local state update needed here.
+      await axios.post("/api/messages", { message: emoji, conversationId });
+    } catch {
+      toast.error("Couldn't send that sticker.");
+    }
+  };
+
   const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -196,6 +209,8 @@ const Form = () => {
         >
           <HiOutlinePaperClip size={19} />
         </button>
+
+        <StickerPicker disabled={uploading} onPick={onPickSticker} />
 
         <form
           onSubmit={handleSubmit(onSubmit)}

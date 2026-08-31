@@ -16,6 +16,8 @@ import { readLink } from "@/lib/webmcp/tools/read-link";
 import { signOut } from "@/lib/webmcp/tools/sign-out";
 import { setupPasskey } from "@/lib/webmcp/tools/setup-passkey";
 import { reactToMessage } from "@/lib/webmcp/tools/react-to-message";
+import { sendSticker } from "@/lib/webmcp/tools/send-sticker";
+import { summarizeConversation } from "@/lib/webmcp/tools/summarize-conversation";
 
 const TOOL_FACTORIES = [
   listConversations,
@@ -34,6 +36,8 @@ const TOOL_FACTORIES = [
   signOut,
   setupPasskey,
   reactToMessage,
+  sendSticker,
+  summarizeConversation,
 ];
 
 const summarizeInput = (input: Record<string, unknown>) => {

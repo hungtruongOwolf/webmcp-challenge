@@ -5,12 +5,15 @@ import { format, isToday, isYesterday, isThisWeek } from "date-fns";
 import { HiOutlineDocument, HiOutlineArrowDownTray } from "react-icons/hi2";
 
 import type { FullMessageType } from "@/app/types";
+import { STICKER_EMOJI } from "@/app/types";
 import { useCurrentUser } from "@/app/context/current-user-context";
 import { useUiSettings } from "@/app/context/ui-settings-context";
 import { avatarColors, initialsFromName } from "@/app/libs/avatar-color";
 import { createClient } from "@/app/libs/supabase/client";
 import Avatar from "@/app/components/avatar";
 import MessageReactions from "./message-reactions";
+
+const STICKER_SET = new Set<string>(STICKER_EMOJI);
 
 function formatBytes(bytes?: number | null) {
   if (!bytes) return "";
@@ -227,6 +230,13 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                               </span>
                               <HiOutlineArrowDownTray size={16} aria-hidden />
                             </a>
+                          ) : message.body && STICKER_SET.has(message.body.trim()) ? (
+                            <div
+                              aria-label={`Sent ${message.body.trim()}`}
+                              style={{ fontSize: 52, lineHeight: 1, padding: "2px 4px" }}
+                            >
+                              {message.body}
+                            </div>
                           ) : (
                             <div
                               style={{

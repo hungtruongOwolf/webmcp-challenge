@@ -13,6 +13,11 @@ export type MessageReaction = Database["public"]["Tables"]["message_reactions"][
 
 export const REACTION_EMOJI = ["👍", "❤️", "😆", "😮", "😢", "😡"] as const;
 
+export const STICKER_EMOJI = [
+  "👍", "❤️", "😂", "😮", "😢", "😡", "🎉", "🔥", "👏", "🙏",
+  "😍", "🤔", "😴", "🥳", "😅", "🙌", "💯", "✨", "🎂", "👋",
+] as const;
+
 export type FullMessageType = Message & {
   sender: User;
   seen: User[];
