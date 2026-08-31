@@ -70,6 +70,14 @@ vi.mock("@/app/libs/auth/auth-gateway", async (importOriginal) => {
 
 const success: AuthResult = { ok: true, value: undefined };
 
+const deferred = <T,>() => {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+};
+
 const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
   signInWithPasskey: vi.fn(async () => success),
   signInWithPassword: vi.fn(async () => success),
@@ -249,5 +257,47 @@ describe("AuthForm", () => {
       expect(navigation.replace).toHaveBeenCalledWith("/conversations")
     );
     expect(navigation.replace).not.toHaveBeenCalledWith("/users");
+  });
+
+  it("blocks passkey and variant actions while an email-link request is pending", async () => {
+    const user = userEvent.setup();
+    const emailLink = deferred<AuthResult>();
+    const signInWithPasskey = vi.fn(async () => success);
+    boundary.gateway = createGateway({
+      sendEmailLink: vi.fn(() => emailLink.promise),
+      signInWithPasskey,
+    });
+    renderAuthForm();
+
+    await user.type(screen.getByLabelText("Email"), "reader@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Email me a sign-in link" })
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Sign in with a passkey" })
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Create an account" })
+    );
+
+    expect(signInWithPasskey).not.toHaveBeenCalled();
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Password")).toHaveAttribute(
+      "autocomplete",
+      "current-password"
+    );
+    expect(
+      screen.getByRole("button", { name: "Sign in with a passkey" })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Create an account" })
+    ).toBeDisabled();
+
+    emailLink.resolve(success);
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Sign-in link sent. Check your email."
+      )
+    );
   });
 });

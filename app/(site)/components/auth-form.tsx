@@ -33,7 +33,8 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const readiness = usePasskeyReadiness();
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
   const [variant, setVariant] = useState<Variant>("LOGIN");
-  const [isBusy, setIsBusy] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const submissionLockRef = useRef(false);
   const gatewayRef = useRef<AuthGateway | null>(null);
   const passkeyButtonRef = useRef<HTMLButtonElement>(null);
   const callbackAlertRef = useRef<HTMLDivElement>(null);
@@ -43,6 +44,18 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     gatewayRef.current ??= createAuthGateway();
     return gatewayRef.current;
   };
+
+  const startSubmission = useCallback(() => {
+    if (submissionLockRef.current) return false;
+    submissionLockRef.current = true;
+    setIsPending(true);
+    return true;
+  }, []);
+
+  const endSubmission = useCallback(() => {
+    submissionLockRef.current = false;
+    setIsPending(false);
+  }, []);
 
   useEffect(() => {
     if (currentUser) router.replace(destination);
@@ -60,6 +73,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   }, [callbackError, readiness.status]);
 
   const toggleVariant = useCallback(() => {
+    if (submissionLockRef.current) return;
     setVariant((current) => (current === "LOGIN" ? "REGISTER" : "LOGIN"));
   }, []);
 
@@ -74,10 +88,10 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   }, [destination, router]);
 
   const signInWithPasskey = async () => {
-    setIsBusy(true);
+    if (!startSubmission()) return;
     beginAuthentication();
     const result = await getGateway().signInWithPasskey();
-    setIsBusy(false);
+    endSubmission();
 
     if (result.ok) {
       completeAuthentication();
@@ -120,7 +134,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
                 ref={passkeyButtonRef}
                 type="button"
                 onClick={signInWithPasskey}
-                disabled={isBusy}
+                disabled={isPending}
                 className="mb-6 flex w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50"
               >
                 <HiOutlineFingerPrint size={20} aria-hidden />
@@ -136,6 +150,9 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
               gateway={getGateway()}
               onAuthenticated={completeAuthentication}
               onPasskeyEnrollment={offerPasskeyEnrollment}
+              isPending={isPending}
+              onSubmissionStart={startSubmission}
+              onSubmissionEnd={endSubmission}
             />
 
             <div className="mt-6 flex justify-center gap-2 px-2 text-sm text-gray-500">
@@ -147,6 +164,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
               <button
                 type="button"
                 onClick={toggleVariant}
+                disabled={isPending}
                 className="cursor-pointer underline"
               >
                 {variant === "LOGIN" ? "Create an account" : "Log in"}
