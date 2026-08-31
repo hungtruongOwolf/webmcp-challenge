@@ -11,6 +11,8 @@ import { draftMessage } from "@/lib/webmcp/tools/draft-message";
 import { sendMessage } from "@/lib/webmcp/tools/send-message";
 import { deleteConversation } from "@/lib/webmcp/tools/delete-conversation";
 import { describeImage } from "@/lib/webmcp/tools/describe-image";
+import { readFile } from "@/lib/webmcp/tools/read-file";
+import { readLink } from "@/lib/webmcp/tools/read-link";
 
 const TOOL_FACTORIES = [
   listConversations,
@@ -24,6 +26,8 @@ const TOOL_FACTORIES = [
   sendMessage,
   deleteConversation,
   describeImage,
+  readFile,
+  readLink,
 ];
 
 const summarizeInput = (input: Record<string, unknown>) => {

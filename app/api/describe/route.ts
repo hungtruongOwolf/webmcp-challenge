@@ -1,43 +1,32 @@
 import { NextResponse } from "next/server";
 
 import { createClient } from "@/app/libs/supabase/server";
+import { generateWithGemini } from "@/app/libs/gemini";
+import { generateWithClaude } from "@/app/libs/anthropic";
+import { fetchAsBase64 } from "@/app/libs/fetch-base64";
 
 const PROMPT =
   "Describe this image in one or two plain sentences for someone who can't see it. Be concrete and factual.";
 
-const describeWithGemini = async (imageUrl: string, apiKey: string) => {
-  const image = await fetch(imageUrl);
-  if (!image.ok) throw new Error(`Could not fetch the image itself (status ${image.status}).`);
+const describeWithClaude = async (imageUrl: string, apiKey: string) => {
+  const { data: bytes, contentType } = await fetchAsBase64(imageUrl);
 
-  const contentType = image.headers.get("content-type") || "image/jpeg";
-  const bytes = Buffer.from(await image.arrayBuffer()).toString("base64");
-
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: PROMPT },
-              { inline_data: { mime_type: contentType, data: bytes } },
-            ],
-          },
-        ],
-      }),
-    }
+  return generateWithClaude(
+    [
+      { type: "text", text: PROMPT },
+      { type: "image", source: { type: "base64", media_type: contentType || "image/jpeg", data: bytes } },
+    ],
+    apiKey
   );
+};
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Gemini request failed (status ${res.status}): ${detail}`);
-  }
+const describeWithGemini = async (imageUrl: string, apiKey: string) => {
+  const { data: bytes, contentType } = await fetchAsBase64(imageUrl);
 
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  return generateWithGemini(
+    [{ text: PROMPT }, { inline_data: { mime_type: contentType || "image/jpeg", data: bytes } }],
+    apiKey
+  );
 };
 
 const describeWithOpenAI = async (imageUrl: string, apiKey: string) => {
@@ -78,8 +67,9 @@ const describeWithOpenAI = async (imageUrl: string, apiKey: string) => {
  *
  * The vision API key has to stay server-side, which is the one reason this
  * route exists instead of calling a provider straight from the tool.
- * Gemini is tried first -- its free tier includes vision at no cost, unlike
- * OpenAI's -- and OpenAI is a fallback for whoever already has that key set.
+ * Claude is tried first (best reliability/quality here), Gemini next (free
+ * tier, no cost), and OpenAI last as a fallback for whoever already has
+ * that key set.
  */
 export async function POST(req: Request) {
   try {
@@ -96,19 +86,22 @@ export async function POST(req: Request) {
       return new NextResponse("imageUrl is required.", { status: 400 });
     }
 
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const geminiKey = process.env.GEMINI_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
 
-    if (!geminiKey && !openaiKey) {
+    if (!anthropicKey && !geminiKey && !openaiKey) {
       return new NextResponse(
-        "Image description isn't configured yet (set GEMINI_API_KEY -- free at aistudio.google.com -- or OPENAI_API_KEY).",
+        "Image description isn't configured yet (set ANTHROPIC_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY).",
         { status: 501 }
       );
     }
 
-    const description = geminiKey
-      ? await describeWithGemini(imageUrl, geminiKey)
-      : await describeWithOpenAI(imageUrl, openaiKey!);
+    const description = anthropicKey
+      ? await describeWithClaude(imageUrl, anthropicKey)
+      : geminiKey
+        ? await describeWithGemini(imageUrl, geminiKey)
+        : await describeWithOpenAI(imageUrl, openaiKey!);
 
     return NextResponse.json({ description: description || "No description available." });
   } catch (error: unknown) {
