@@ -206,6 +206,7 @@ const AuthForm = () => {
               type="text"
               id="name"
               label="Name"
+              autoComplete="name"
               placeholder="John Doe"
               register={register}
               errors={errors}
@@ -218,6 +219,7 @@ const AuthForm = () => {
             type="email"
             id="email"
             label="Email Address"
+            autoComplete="email"
             placeholder="johndoe@email.com"
             register={register}
             errors={errors}
@@ -229,6 +231,9 @@ const AuthForm = () => {
             type="password"
             id="password"
             label="Password"
+            autoComplete={
+              variant === "LOGIN" ? "current-password" : "new-password"
+            }
             placeholder="••••••••••"
             register={register}
             errors={errors}

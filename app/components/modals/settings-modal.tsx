@@ -80,6 +80,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                 disabled={isLoading}
                 label="Name"
                 id="name"
+                autoComplete="name"
                 errors={errors}
                 required
                 register={register}

@@ -74,6 +74,7 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({
                 register={register}
                 label="Name"
                 id="name"
+                autoComplete="off"
                 disabled={isLoading}
                 errors={errors}
                 required
