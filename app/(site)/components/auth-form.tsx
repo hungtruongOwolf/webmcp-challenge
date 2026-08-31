@@ -39,7 +39,6 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const gatewayRef = useRef<AuthGateway | null>(null);
   const passkeyButtonRef = useRef<HTMLButtonElement>(null);
   const callbackAlertRef = useRef<HTMLDivElement>(null);
-  const operationAlertRef = useRef<HTMLDivElement>(null);
   const destination = sanitizeAuthReturnPath(returnPath);
 
   const getGateway = () => {
@@ -74,14 +73,9 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     return () => cancelAnimationFrame(frame);
   }, [callbackError, readiness.status]);
 
-  useEffect(() => {
-    if (!operationError) return;
-    const frame = requestAnimationFrame(() => operationAlertRef.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [operationError]);
-
   const toggleVariant = useCallback(() => {
     if (submissionLockRef.current) return;
+    setOperationError(null);
     setVariant((current) => (current === "LOGIN" ? "REGISTER" : "LOGIN"));
   }, []);
 
@@ -108,10 +102,11 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     }
 
     const message = authFailureMessage(result.code);
-    returnToSignedOut(message);
     if (result.code === "PASSKEY_CANCELLED") {
+      returnToSignedOut(message);
       requestAnimationFrame(() => passkeyButtonRef.current?.focus());
     } else {
+      returnToSignedOut("");
       setOperationError(message);
     }
   };
@@ -127,7 +122,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
           <p className="text-sm text-gray-600">{readiness.message}</p>
         ) : (
           <>
-            {callbackError === "auth_link_invalid" && (
+            {callbackError === "auth_link_invalid" && !operationError && (
               <div
                 ref={callbackAlertRef}
                 role="alert"
@@ -138,17 +133,6 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
                 <a className="underline" href="#email">
                   Email me a new link
                 </a>
-              </div>
-            )}
-
-            {operationError && (
-              <div
-                ref={operationAlertRef}
-                role="alert"
-                tabIndex={-1}
-                className="mb-6 rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
-              >
-                {operationError}
               </div>
             )}
 
@@ -186,6 +170,8 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
               isPending={isPending}
               onSubmissionStart={startSubmission}
               onSubmissionEnd={endSubmission}
+              operationError={operationError}
+              onOperationError={setOperationError}
             />
 
             <div className="mt-6 flex justify-center gap-2 px-2 text-sm text-gray-500">

@@ -197,6 +197,12 @@ describe("PasskeyEnrollment", () => {
       "The passkey could not be used. Try another sign-in method."
     );
     await waitFor(() => expect(alert).toHaveFocus());
+    expect(screen.getAllByText(
+      "The passkey could not be used. Try another sign-in method."
+    )).toHaveLength(1);
+    expect(screen.getByRole("status")).not.toHaveTextContent(
+      "The passkey could not be used. Try another sign-in method."
+    );
   });
 
   it("lets the user continue without enrolling", async () => {

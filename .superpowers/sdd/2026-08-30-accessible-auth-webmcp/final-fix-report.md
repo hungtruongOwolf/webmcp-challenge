@@ -156,3 +156,86 @@ enrollment heading target, or removing `aria-describedby` fails a named test.
   are not claimed passed.
 - The recorded Vite config-loader warning and six high-severity npm audit
   findings remain external/unrelated evidence gates.
+
+## Residual correction
+
+The scoped re-review found that blocking authentication failures were present
+both in the focused alert and the polite global status, while AuthForm and
+EmailAuthForm owned independent operation-error state. That split ownership
+also allowed one method's stale alert to survive activation of another method.
+
+### Residual RED evidence
+
+The first residual RED run was:
+
+```text
+npm test -- app/(site)/components/auth-form.test.tsx app/(site)/components/email-auth-form.test.tsx app/components/auth/passkey-enrollment.test.tsx
+```
+
+Result: exit 1; 3 files failed; 6 intended tests failed and 26 neighboring
+tests passed. Password, email-link, passkey sign-in, and enrollment error text
+each appeared twice where covered; passkey-failure to email-link activation and
+email-link-failure to passkey activation each left a stale alert.
+
+Mutation review then removed the password-activation and mode-switch clears
+before adding their tests. The second RED command was:
+
+```text
+npm test -- app/(site)/components/auth-form.test.tsx
+```
+
+Result: exit 1; the two new tests failed because password activation and
+login/register switching each retained the previous operation alert. Thirteen
+neighboring AuthForm tests passed.
+
+### Residual implementation
+
+- AuthForm is now the single owner of sign-in operation errors.
+- EmailAuthForm receives that shared value and renders the page's sole
+  operation alert, so passkey and email/password paths cannot render separate
+  blocking summaries.
+- Passkey, email-link, password, and account-mode activation all clear the
+  same shared error after respecting the existing submission lock.
+- Blocking failures return the connection state to signed out with an empty
+  polite message, then expose the fixed normalized text only through the
+  focused `role="alert"`.
+- Passkey cancellation still uses the fixed polite message and restores focus
+  to the invoking button without creating an alert.
+- Enrollment announces only cancellation through the polite region;
+  non-cancellation failure uses only its focused alert.
+
+### Residual GREEN and final verification
+
+```text
+npm test -- app/(site)/components/auth-form.test.tsx app/(site)/components/email-auth-form.test.tsx app/components/auth/passkey-enrollment.test.tsx
+```
+
+Result: PASS, 3 files and 34 tests.
+
+Fresh final checks after the focus-effect refactor:
+
+| Command | Result |
+|---|---|
+| `npm test` | PASS: 16 files, 119 tests |
+| `npx tsc --noEmit` | PASS: exit 0 |
+| `npm run lint` | PASS: no ESLint warnings or errors; existing Next.js deprecation notice remains |
+| `npm run verify:passkey-config` | PASS: local origin/RP-ID pair |
+| Playwright `--list` with invalid non-secret placeholders | PASS: exactly 6 Chromium tests discovered |
+| `npm run test:e2e` without credentials | EXPECTED GATE: immediate exact disposable-credential error |
+| `git diff --check` | PASS: no whitespace errors before staging |
+
+### Residual self-review and mutation check
+
+- Reintroducing a parent-local passkey alert or child-local email alert makes
+  the cross-method tests observe stale or multiple alerts.
+- Restoring the blocking message in `returnToSignedOut` makes the literal
+  occurrence and polite-status assertions fail.
+- Removing the clear from passkey, email-link, password, or mode-switch
+  activation fails its named regression test.
+- Moving enrollment's `announce(message)` back outside the cancellation branch
+  fails the sole-announcement assertion.
+- Cancellation still has one polite status message, no alert, and restored
+  invoking-button focus.
+- The shared busy lock, fixed copy, callback focus handoff, provider lifecycle,
+  public privacy payload, safe destinations, axe coverage, and passkey
+  description were not broadened or altered.
