@@ -7,12 +7,54 @@ import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
 import { HiOutlineFingerPrint } from "react-icons/hi2";
 
-import Input from "@/app/components/inputs/input";
-import Button from "@/app/components/button";
 import { createClient } from "@/app/libs/supabase/client";
 import { useCurrentUser } from "@/app/context/current-user-context";
 
 type Variant = "LOGIN" | "REGISTER";
+
+const cardStyle: React.CSSProperties = {
+  width: "100%",
+  padding: 24,
+  borderRadius: 22,
+  boxShadow: "var(--e2), inset 0 1px 0 var(--hi)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
+};
+
+const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
+  height: 44,
+  border: "none",
+  borderRadius: 10,
+  background: "var(--accent)",
+  color: "#fff",
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.6 : 1,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+});
+
+const fieldLabelStyle: React.CSSProperties = {
+  fontSize: 12.5,
+  fontWeight: 600,
+  color: "var(--t2)",
+};
+
+const fieldInputStyle: React.CSSProperties = {
+  height: 42,
+  padding: "0 12px",
+  border: "none",
+  borderRadius: 10,
+  background: "var(--bub-in)",
+  color: "var(--t1)",
+  fontSize: 14,
+  outline: "none",
+  boxShadow: "inset 0 0 0 0.5px var(--hair)",
+};
 
 const AuthForm = () => {
   const router = useRouter();
@@ -33,7 +75,7 @@ const AuthForm = () => {
   }, []);
 
   useEffect(() => {
-    if (currentUser && !offerEnrollment) router.push("/users");
+    if (currentUser && !offerEnrollment) router.push("/conversations");
   }, [currentUser, offerEnrollment, router]);
 
   const toggleVariant = useCallback(
@@ -50,7 +92,7 @@ const AuthForm = () => {
   });
 
   const enter = () => {
-    router.push("/users");
+    router.push("/conversations");
     router.refresh();
   };
 
@@ -131,131 +173,149 @@ const AuthForm = () => {
 
   if (offerEnrollment) {
     return (
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white px-4 py-8 shadow-sm rounded-lg sm:px-10 text-center">
-          <HiOutlineFingerPrint
-            size={44}
-            className="mx-auto text-sky-500"
-            aria-hidden
-          />
-          <h2 className="mt-4 text-lg font-semibold text-gray-900">
+      <div className="gm-glass2" style={{ ...cardStyle, alignItems: "center", textAlign: "center" }}>
+        <span
+          aria-hidden
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 999,
+            background: "var(--sel)",
+            color: "var(--accent-t)",
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
+          <HiOutlineFingerPrint size={30} />
+        </span>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "var(--t1)" }}>
             Add a passkey?
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Sign in with your fingerprint, face, or device PIN instead of typing
-            a password.
+          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--t2)" }}>
+            Sign in with your fingerprint, face, or device PIN instead of typing a password.
           </p>
+        </div>
 
-          <div className="mt-6 flex flex-col gap-2">
-            <Button
-              type="button"
-              onClick={enrollPasskey}
-              disabled={isLoading}
-              fullWidth
-            >
-              Set up passkey
-            </Button>
-            <button
-              type="button"
-              onClick={enter}
-              className="text-sm text-gray-500 underline cursor-pointer"
-            >
-              Maybe later
-            </button>
-          </div>
+        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={enrollPasskey}
+            disabled={isLoading}
+            style={primaryButtonStyle(isLoading)}
+          >
+            Set up passkey
+          </button>
+          <button
+            type="button"
+            onClick={enter}
+            disabled={isLoading}
+            style={{ background: "none", border: "none", padding: 4, fontSize: 13, fontWeight: 500, color: "var(--t3)", cursor: "pointer" }}
+          >
+            Maybe later
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div className="bg-white px-4 py-8 shadow-sm rounded-lg sm:px-10">
-        {canUsePasskeys && (
-          <>
-            <button
-              type="button"
-              onClick={signInWithPasskey}
-              disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50"
-            >
-              <HiOutlineFingerPrint size={20} aria-hidden />
-              Sign in with a passkey
-            </button>
-
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div
-                  role="separator"
-                  className="w-full border-t border-gray-300"
-                  aria-hidden
-                />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-2 text-gray-500">
-                  or use your email
-                </span>
-              </div>
-            </div>
-          </>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {variant === "REGISTER" && (
-            <Input
-              type="text"
-              id="name"
-              label="Name"
-              placeholder="John Doe"
-              register={register}
-              errors={errors}
-              disabled={isLoading}
-              required
-            />
-          )}
-
-          <Input
-            type="email"
-            id="email"
-            label="Email Address"
-            placeholder="johndoe@email.com"
-            register={register}
-            errors={errors}
-            disabled={isLoading}
-            required
-          />
-
-          <Input
-            type="password"
-            id="password"
-            label="Password"
-            placeholder="••••••••••"
-            register={register}
-            errors={errors}
-            disabled={isLoading}
-            required
-          />
-
-          <Button type="submit" disabled={isLoading} fullWidth secondary>
-            {variant === "LOGIN" ? "Sign in" : "Create account"}
-          </Button>
-        </form>
-
-        <div className="flex gap-2 justify-center text-sm mt-6 px-2 text-gray-500">
-          <p>
-            {variant === "LOGIN"
-              ? "New to Messenger?"
-              : "Already have an account?"}
-          </p>
-
+    <div className="gm-glass2" style={cardStyle}>
+      {canUsePasskeys && (
+        <>
           <button
             type="button"
-            onClick={toggleVariant}
-            className="underline cursor-pointer"
+            onClick={signInWithPasskey}
+            disabled={isLoading}
+            style={primaryButtonStyle(isLoading)}
           >
-            {variant === "LOGIN" ? "Create an account" : "Log in"}
+            <HiOutlineFingerPrint size={19} aria-hidden />
+            Sign in with a passkey
           </button>
-        </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden />
+            <span style={{ flex: "none", fontSize: 12, color: "var(--t3)" }}>or use your email</span>
+            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden />
+          </div>
+        </>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {variant === "REGISTER" && (
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={fieldLabelStyle}>Name</span>
+            <input
+              type="text"
+              id="name"
+              placeholder="John Doe"
+              autoComplete="name"
+              disabled={isLoading}
+              {...register("name", { required: true })}
+              style={{
+                ...fieldInputStyle,
+                boxShadow: errors.name
+                  ? "inset 0 0 0 1.5px #e5484d"
+                  : fieldInputStyle.boxShadow,
+              }}
+            />
+          </label>
+        )}
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={fieldLabelStyle}>Email Address</span>
+          <input
+            type="email"
+            id="email"
+            placeholder="johndoe@email.com"
+            autoComplete="email"
+            disabled={isLoading}
+            {...register("email", { required: true })}
+            style={{
+              ...fieldInputStyle,
+              boxShadow: errors.email
+                ? "inset 0 0 0 1.5px #e5484d"
+                : fieldInputStyle.boxShadow,
+            }}
+          />
+        </label>
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={fieldLabelStyle}>Password</span>
+          <input
+            type="password"
+            id="password"
+            placeholder="••••••••••"
+            autoComplete="current-password"
+            disabled={isLoading}
+            {...register("password", { required: true })}
+            style={{
+              ...fieldInputStyle,
+              boxShadow: errors.password
+                ? "inset 0 0 0 1.5px #e5484d"
+                : fieldInputStyle.boxShadow,
+            }}
+          />
+        </label>
+
+        <button type="submit" disabled={isLoading} style={{ ...primaryButtonStyle(isLoading), marginTop: 2 }}>
+          {variant === "LOGIN" ? "Sign in" : "Create account"}
+        </button>
+      </form>
+
+      <div style={{ display: "flex", justifyContent: "center", gap: 6, fontSize: 13 }}>
+        <span style={{ color: "var(--t3)" }}>
+          {variant === "LOGIN" ? "New to Messenger?" : "Already have an account?"}
+        </span>
+
+        <button
+          type="button"
+          onClick={toggleVariant}
+          style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 600, color: "var(--accent-t)", cursor: "pointer" }}
+        >
+          {variant === "LOGIN" ? "Create an account" : "Log in"}
+        </button>
       </div>
     </div>
   );
