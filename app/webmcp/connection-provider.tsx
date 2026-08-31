@@ -23,6 +23,7 @@ import {
   connectionMessage,
   connectionReducer,
   initialConnectionState,
+  SIGN_IN_GUIDANCE,
 } from "./connection-state";
 import type {
   ConnectionEvent,
@@ -66,6 +67,7 @@ const snapshotFor = (
   state: state.status,
   route,
   nextAction: state.userId === null ? "sign_in_on_page" : "none",
+  guidance: state.userId === null ? SIGN_IN_GUIDANCE : null,
 });
 
 export const WebMCPConnectionProvider = ({

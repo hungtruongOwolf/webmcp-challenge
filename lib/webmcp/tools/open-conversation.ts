@@ -31,6 +31,8 @@ export const openConversation: ToolFactory = (ctx) => ({
 
     ctx.navigate(`/conversations/${conversationId}`);
 
-    return textResult(`Opened conversation ${conversationId}.`);
+    return textResult(
+      `Opened (id: ${conversationId}). To actually send a message, call draft_message then send_message with this id.`
+    );
   },
 });

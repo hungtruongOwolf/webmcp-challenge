@@ -6,6 +6,7 @@ const getSnapshot = vi.fn(() => ({
   state: "SIGNED_OUT" as const,
   route: "/",
   nextAction: "sign_in_on_page" as const,
+  guidance: "Sign-in requires the human, not the agent.",
 }));
 
 it("ships only connection status in public and authenticated scopes", () => {

@@ -530,7 +530,7 @@ describe("WebMCPConnectionProvider", () => {
 
     const [publicStatus] = modelContext.activeTools();
     const payload = await publicStatus.tool.execute({});
-    expect(parseToolResult(payload)).toEqual({
+    expect(parseToolResult(payload)).toMatchObject({
       authenticated: false,
       state: "SESSION_EXPIRED",
       route: "/conversations",

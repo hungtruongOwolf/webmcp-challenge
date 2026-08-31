@@ -28,7 +28,20 @@ export type ConnectionSnapshot = {
   state: ConnectionStatusName;
   route: string;
   nextAction: "sign_in_on_page" | "none";
+  /**
+   * Only set when nextAction is "sign_in_on_page". Every sign-in path here
+   * (password, magic-link email, passkey biometric/security-key) requires
+   * the human's own action -- there is no WebMCP tool for it, by design.
+   * An agent that doesn't read this ends up repeatedly clicking the
+   * sign-in button itself, which can never complete a passkey ceremony.
+   */
+  guidance: string | null;
 };
+
+export const SIGN_IN_GUIDANCE =
+  "Sign-in requires the human, not the agent -- password, magic-link email, and passkey " +
+  "(biometric/security-key) all need the human's own action on this page. Do not click " +
+  "sign-in controls yourself. Ask the user to sign in, then call this tool again.";
 
 export const initialConnectionState: ConnectionState = {
   status: "SIGNED_OUT",

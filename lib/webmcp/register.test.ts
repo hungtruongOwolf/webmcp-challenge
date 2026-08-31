@@ -22,6 +22,7 @@ describe("createWebmcpTools", () => {
       "describe_image",
       "read_file",
       "read_link",
+      "sign_out",
     ]);
     expect(onEvent).not.toHaveBeenCalled();
   });

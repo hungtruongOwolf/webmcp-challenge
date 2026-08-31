@@ -8,6 +8,7 @@ it("returns a non-sensitive live snapshot", async () => {
     state: "SIGNED_OUT",
     route,
     nextAction: "sign_in_on_page",
+    guidance: "Sign-in requires the human, not the agent.",
   }));
 
   expect(tool.name).toBe("get_connection_status");
@@ -21,6 +22,7 @@ it("returns a non-sensitive live snapshot", async () => {
     state: "SIGNED_OUT",
     route: "/",
     nextAction: "sign_in_on_page",
+    guidance: "Sign-in requires the human, not the agent.",
   });
 
   route = "/conversations";

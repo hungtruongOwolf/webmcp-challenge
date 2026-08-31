@@ -13,6 +13,7 @@ import { deleteConversation } from "@/lib/webmcp/tools/delete-conversation";
 import { describeImage } from "@/lib/webmcp/tools/describe-image";
 import { readFile } from "@/lib/webmcp/tools/read-file";
 import { readLink } from "@/lib/webmcp/tools/read-link";
+import { signOut } from "@/lib/webmcp/tools/sign-out";
 
 const TOOL_FACTORIES = [
   listConversations,
@@ -28,6 +29,7 @@ const TOOL_FACTORIES = [
   describeImage,
   readFile,
   readLink,
+  signOut,
 ];
 
 const summarizeInput = (input: Record<string, unknown>) => {

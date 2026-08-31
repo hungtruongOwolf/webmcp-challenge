@@ -1,36 +1,41 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 
-export const readFile: ToolFactory = () => ({
+export const readFile: ToolFactory = (ctx) => ({
   name: "read_file",
   description:
     "Read the text content of a file message (.txt, .csv, .pdf) so the agent can answer questions about it.",
   inputSchema: {
     type: "object",
     properties: {
-      file_url: {
+      message_id: {
         type: "string",
-        description: "The file URL from a message returned by read_conversation.",
-      },
-      file_name: {
-        type: "string",
-        description: "The file name, if known -- used to tell the file type.",
+        description: "The message id from read_conversation that shared the file.",
       },
     },
-    required: ["file_url"],
+    required: ["message_id"],
     additionalProperties: false,
   },
   annotations: { readOnlyHint: true },
   execute: async (input) => {
-    const fileUrl = String(input.file_url || "");
-    if (!fileUrl) return errorResult("file_url is required.");
+    const messageId = String(input.message_id || "");
+    if (!messageId) return errorResult("message_id is required.");
 
-    const fileName = input.file_name ? String(input.file_name) : undefined;
+    // See describe_image for why this resolves the URL server-side instead
+    // of trusting one the model retyped from a prior tool result.
+    const { data: message, error } = await ctx.supabase
+      .from("messages")
+      .select("file_url, file_name")
+      .eq("id", messageId)
+      .maybeSingle();
+
+    if (error) return errorResult(`Could not look up that message: ${error.message}`);
+    if (!message?.file_url) return errorResult("That message has no file attached.");
 
     const res = await fetch("/api/read-file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileUrl, fileName }),
+      body: JSON.stringify({ fileUrl: message.file_url, fileName: message.file_name }),
     });
 
     if (!res.ok) {
