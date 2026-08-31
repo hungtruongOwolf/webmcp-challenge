@@ -145,6 +145,9 @@ export type Database = {
           body: string | null
           conversation_id: string
           created_at: string
+          file_name: string | null
+          file_size: number | null
+          file_url: string | null
           id: string
           image: string | null
           sender_id: string
@@ -153,6 +156,9 @@ export type Database = {
           body?: string | null
           conversation_id: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
           id?: string
           image?: string | null
           sender_id: string
@@ -161,6 +167,9 @@ export type Database = {
           body?: string | null
           conversation_id?: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
           id?: string
           image?: string | null
           sender_id?: string
@@ -219,7 +228,14 @@ export type Database = {
         Returns: string
       }
       create_message: {
-        Args: { p_body?: string; p_conversation_id: string; p_image?: string }
+        Args: {
+          p_body?: string
+          p_conversation_id: string
+          p_file_name?: string
+          p_file_size?: number
+          p_file_url?: string
+          p_image?: string
+        }
         Returns: string
       }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }

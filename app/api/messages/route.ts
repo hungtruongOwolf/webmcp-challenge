@@ -16,6 +16,9 @@ const toMessageDTO = (m: any) => ({
   id: m.id,
   body: m.body,
   image: m.image,
+  fileUrl: m.file_url,
+  fileName: m.file_name,
+  fileSize: m.file_size,
   createdAt: m.created_at,
   senderId: m.sender_id,
   conversationId: m.conversation_id,
@@ -33,7 +36,7 @@ export async function POST(req: Request) {
 
     if (!user) return new NextResponse("Unauthorized.", { status: 401 });
 
-    const { message, image, conversationId } = await req.json();
+    const { message, image, conversationId, fileUrl, fileName, fileSize } = await req.json();
 
     const { data: messageId, error: rpcError } = await supabase.rpc(
       "create_message",
@@ -41,6 +44,9 @@ export async function POST(req: Request) {
         p_conversation_id: conversationId,
         p_body: message,
         p_image: image,
+        p_file_url: fileUrl,
+        p_file_name: fileName,
+        p_file_size: fileSize,
       },
     );
 

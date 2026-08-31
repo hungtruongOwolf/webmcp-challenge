@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { CldUploadButton } from "next-cloudinary";
 import type { User } from "@/app/types";
 import { HiXMark } from "react-icons/hi2";
 
 import { createClient } from "@/app/libs/supabase/client";
+import { uploadAvatar } from "@/app/libs/supabase/upload";
 import Avatar from "@/app/components/avatar";
 import ConfirmDialog from "@/app/components/modals/confirm-dialog";
 
@@ -23,7 +23,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
   const [name, setName] = useState(currentUser?.name || "");
   const [image, setImage] = useState(currentUser?.image || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -34,8 +36,25 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
 
   if (!isOpen) return null;
 
-  const handleUpload = (result: any) => {
-    setImage(result?.info?.secure_url || "");
+  const onPickAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Photos are limited to 4 MB.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const url = await uploadAvatar(createClient(), file);
+      setImage(url);
+    } catch {
+      toast.error("Couldn't upload that photo.");
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   const canSave = name.trim().length > 0 && !isSaving;
@@ -88,15 +107,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <Avatar user={{ ...currentUser, image } as User} size={64} showStatus={false} />
             <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
-              <CldUploadButton
-                options={{ maxFiles: 1, maxFileSize: 4000000 }}
-                onUpload={handleUpload}
-                uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_PRESET}
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                hidden
+                onChange={onPickAvatar}
+              />
+              <button
+                type="button"
+                disabled={isUploadingAvatar}
+                onClick={() => avatarInputRef.current?.click()}
+                style={{ height: 32, padding: "0 12px", border: "none", borderRadius: 10, background: "var(--hover)", color: "var(--t1)", fontSize: 12.5, fontWeight: 600, cursor: isUploadingAvatar ? "default" : "pointer", display: "grid", placeItems: "center", opacity: isUploadingAvatar ? 0.6 : 1 }}
               >
-                <span style={{ height: 32, padding: "0 12px", border: "none", borderRadius: 10, background: "var(--hover)", color: "var(--t1)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "grid", placeItems: "center" }}>
-                  Change photo
-                </span>
-              </CldUploadButton>
+                {isUploadingAvatar ? "Uploading…" : "Change photo"}
+              </button>
               <span style={{ fontSize: 11.5, color: "var(--t3)" }}>JPG or PNG, up to 5 MB</span>
             </div>
           </div>
