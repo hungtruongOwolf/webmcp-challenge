@@ -52,8 +52,15 @@ The app degrades without these, but still builds and serves the login page:
 - **Pusher** — realtime message delivery. Without it messages persist but do not
   appear live; you must reload.
 - **Cloudinary** — image upload in chat and avatar changes.
-- **GitHub / Google OAuth** — the social sign-in buttons. Email + password
-  registration works without them (needs only the database).
+
+## Passkeys
+
+Local development uses `NEXT_PUBLIC_APP_ORIGIN=http://localhost:3000` and
+`NEXT_PUBLIC_PASSKEY_RP_ID=localhost`. Production must set
+`NEXT_PUBLIC_APP_ORIGIN` to its exact HTTPS origin and
+`NEXT_PUBLIC_PASSKEY_RP_ID` to that origin's exact hostname. Configure the same
+relying-party ID in Supabase. Changing the Supabase relying-party ID invalidates
+previously enrolled passkeys, so users must enroll new ones after a change.
 
 ## Changed from upstream
 

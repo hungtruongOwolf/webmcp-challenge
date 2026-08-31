@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { sanitizeAuthReturnPath } from "@/app/libs/auth/return-path";
 
 /** Routes that require a signed-in user. Mirrors the old middleware matcher. */
-const PROTECTED = ["/users", "/conversations"];
+const PROTECTED = ["/users", "/conversations", "/auth/passkey"];
 
 /**
  * Refreshes the auth cookie on every request and guards protected routes.
