@@ -43,6 +43,7 @@ export const EmailAuthForm = ({
   onOperationError,
 }: EmailAuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
+  const [showPassword, setShowPassword] = useState(false);
   const [focusSummaryRequested, setFocusSummaryRequested] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const {
@@ -221,33 +222,54 @@ export const EmailAuthForm = ({
         Email me a sign-in link
       </Button>
 
-      <div
-        role="separator"
-        aria-label="or use a password"
-        style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--t3)" }}
-      >
-        <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
-        <span aria-hidden="true">or use a password</span>
-        <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
-      </div>
+      {showPassword ? (
+        <>
+          <div
+            role="separator"
+            aria-label="or use a password"
+            style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--t3)" }}
+          >
+            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
+            <span aria-hidden="true">or use a password</span>
+            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
+          </div>
 
-      <Input<EmailAuthValues>
-        type="password"
-        id="password"
-        label="Password"
-        autoComplete={
-          variant === "LOGIN" ? "current-password" : "new-password"
-        }
-        register={register}
-        errors={errors}
-        disabled={isPending}
-      />
+          <Input<EmailAuthValues>
+            type="password"
+            id="password"
+            label="Password"
+            autoComplete={
+              variant === "LOGIN" ? "current-password" : "new-password"
+            }
+            register={register}
+            errors={errors}
+            disabled={isPending}
+          />
 
-      <Button type="submit" disabled={isPending} fullWidth secondary>
-        {variant === "LOGIN"
-          ? "Sign in with password"
-          : "Create account with password"}
-      </Button>
+          <Button type="submit" disabled={isPending} fullWidth secondary>
+            {variant === "LOGIN"
+              ? "Sign in with password"
+              : "Create account with password"}
+          </Button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowPassword(true)}
+          disabled={isPending}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 4,
+            fontSize: 13,
+            fontWeight: 500,
+            color: "var(--t3)",
+            cursor: isPending ? "default" : "pointer",
+          }}
+        >
+          Use password instead
+        </button>
+      )}
     </form>
   );
 };

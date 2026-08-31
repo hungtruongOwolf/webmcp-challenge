@@ -134,14 +134,29 @@ describe("EmailAuthForm", () => {
     });
   });
 
-  it("keeps email-link before password submission in the control order", () => {
+  it("keeps email-link before the password toggle in the control order, password collapsed by default", () => {
     renderForm();
 
     const controls = screen.getAllByRole("button");
     expect(controls.map((control) => control.textContent)).toEqual([
       "Email me a sign-in link",
-      "Sign in with password",
+      "Use password instead",
     ]);
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+  });
+
+  it("reveals the password field after 'Use password instead' is clicked", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
+
+    expect(screen.getByLabelText("Password")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Sign in with password" })
+    ).toBeVisible();
   });
 
   it("focuses its alert summary and marks email invalid after an empty email action", async () => {
@@ -165,6 +180,9 @@ describe("EmailAuthForm", () => {
     const email = screen.getByLabelText("Email");
 
     await user.type(email, "reader@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     await user.click(
       screen.getByRole("button", { name: "Sign in with password" })
     );
@@ -236,6 +254,9 @@ describe("EmailAuthForm", () => {
     renderForm({ gateway: createGateway({ signInWithPassword }) });
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     await user.type(screen.getByLabelText("Password"), "wrong password");
     await user.click(
       screen.getByRole("button", { name: "Sign in with password" })
@@ -287,6 +308,9 @@ describe("EmailAuthForm", () => {
 
     await user.type(screen.getByLabelText("Name"), "Ada Reader");
     await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     await user.type(screen.getByLabelText("Password"), "strong password");
     await user.click(
       screen.getByRole("button", { name: "Create account with password" })
@@ -308,6 +332,9 @@ describe("EmailAuthForm", () => {
 
     await user.type(screen.getByLabelText("Name"), "Ada Reader");
     await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     await user.type(screen.getByLabelText("Password"), "strong password");
     await user.click(
       screen.getByRole("button", { name: "Create account with password" })
@@ -331,6 +358,9 @@ describe("EmailAuthForm", () => {
     render(<PendingPasskeyHarness gateway={gateway} />);
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     await user.type(screen.getByLabelText("Password"), "secret phrase");
     await user.click(
       screen.getByRole("button", { name: "Start passkey request" })

@@ -91,7 +91,10 @@ it("reports custom errors when the production authentication form is submitted b
   );
 
   await user.click(
-    await screen.findByRole("button", { name: "Sign in with password" })
+    await screen.findByRole("button", { name: "Use password instead" })
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Sign in with password" })
   );
 
   expect(screen.getByText("Email is required.")).toBeInTheDocument();

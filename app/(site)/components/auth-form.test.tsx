@@ -136,7 +136,7 @@ describe("AuthForm", () => {
     ).toEqual([
       "Sign in with a passkey",
       "Email me a sign-in link",
-      "Sign in with password",
+      "Use password instead",
       "Create an account",
     ]);
     expect(passkeyButton).toHaveAccessibleDescription(
@@ -290,6 +290,9 @@ describe("AuthForm", () => {
       screen.getByRole("button", { name: "Sign in with a passkey" })
     );
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     await user.type(screen.getByLabelText("Password"), "secret phrase");
     await user.click(
       screen.getByRole("button", { name: "Sign in with password" })
@@ -323,6 +326,9 @@ describe("AuthForm", () => {
     );
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",
       "new-password"
@@ -390,6 +396,9 @@ describe("AuthForm", () => {
     const user = userEvent.setup();
     renderAuthForm();
 
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",
       "current-password"
@@ -425,6 +434,9 @@ describe("AuthForm", () => {
     });
     renderAuthForm();
 
+    await user.click(
+      screen.getByRole("button", { name: "Use password instead" })
+    );
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
     await user.click(
       screen.getByRole("button", { name: "Email me a sign-in link" })
