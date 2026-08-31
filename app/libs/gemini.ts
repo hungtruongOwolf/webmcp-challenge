@@ -10,14 +10,23 @@ export async function generateWithGemini(
   apiKey: string,
   model?: string
 ): Promise<string | undefined> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model || process.env.GEMINI_MODEL || DEFAULT_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts }] }),
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model || process.env.GEMINI_MODEL || DEFAULT_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contents: [{ parts }] }),
+        signal: AbortSignal.timeout(20_000),
+      }
+    );
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error("Gemini didn't respond in time.");
     }
-  );
+    throw err;
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");

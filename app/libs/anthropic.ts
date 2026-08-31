@@ -11,19 +11,28 @@ export async function generateWithClaude(
   apiKey: string,
   model?: string
 ): Promise<string | undefined> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
-      max_tokens: 1024,
-      messages: [{ role: "user", content }],
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+        max_tokens: 1024,
+        messages: [{ role: "user", content }],
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error("Claude didn't respond in time.");
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");

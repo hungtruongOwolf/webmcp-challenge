@@ -1,5 +1,6 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, relativeTime } from "@/lib/webmcp/budget";
+import { reactionLabel } from "@/lib/webmcp/reactions";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 40;
@@ -8,8 +9,9 @@ export const readConversation: ToolFactory = (ctx) => ({
   name: "read_conversation",
   description:
     "Read messages, oldest first, and marks them seen. Images/files show a message_id -- " +
-    "ask before calling describe_image/read_file with it. Pass `before` (a timestamp from " +
-    "the oldest message returned) to page further back in time.",
+    "ask before calling describe_image/read_file with it. Each message also shows who " +
+    "reacted and with what, if anyone did. Pass `before` (a timestamp from the oldest " +
+    "message returned) to page further back in time.",
   inputSchema: {
     type: "object",
     properties: {
@@ -43,7 +45,7 @@ export const readConversation: ToolFactory = (ctx) => ({
     let query = ctx.supabase
       .from("messages")
       .select(
-        "id, body, image, file_url, file_name, created_at, sender:profiles!messages_sender_id_fkey (name)"
+        "id, body, image, file_url, file_name, created_at, sender:profiles!messages_sender_id_fkey (name), reactions:message_reactions ( emoji, user:profiles!message_reactions_user_id_fkey (name) )"
       )
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
@@ -74,7 +76,19 @@ export const readConversation: ToolFactory = (ctx) => ({
           ? `[shared a file "${m.file_name}" -- read_file message_id="${m.id}"]`
           : m.body || "";
 
-      return `${who} (${when}): ${body}`;
+      const byEmoji = new Map<string, string[]>();
+      for (const r of m.reactions ?? []) {
+        const name = r.user?.name || "Someone";
+        if (!byEmoji.has(r.emoji)) byEmoji.set(r.emoji, []);
+        byEmoji.get(r.emoji)!.push(name);
+      }
+      const reactionsSuffix = byEmoji.size
+        ? ` [reactions: ${Array.from(byEmoji.entries())
+            .map(([emoji, names]) => `${reactionLabel(emoji)} from ${names.join(", ")}`)
+            .join("; ")}]`
+        : "";
+
+      return `${who} (${when}): ${body}${reactionsSuffix}`;
     });
 
     const oldest = data[data.length - 1]?.created_at;
