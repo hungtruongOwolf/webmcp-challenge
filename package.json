@@ -13,52 +13,30 @@
     "verify:passkey-config": "node scripts/check-passkey-config.mjs"
   },
   "author": {
-    "name": "Sanidhya Kumar Verma",
-    "email": "sanidhyyy@gmail.com",
-    "url": "https://github.com/sanidhyy"
+    "name": "hungtruongOwolf"
   },
-  "description": "A Real-Time Messenger Clone using Next.js 14.",
+  "description": "A WebMCP-native real-time Messenger clone -- an AI agent can drive the chat UI on the signed-in user's behalf.",
   "keywords": [
-    "reactjs",
+    "webmcp",
+    "model-context-protocol",
     "nextjs",
-    "vercel",
     "react",
-    "messenger clone",
-    "chat app",
-    "realtime",
-    "supabase",
-    "zustand",
-    "clsx",
-    "react-hot-toast",
-    "next-cloudinary",
-    "headlessui",
-    "postgres",
-    "react-icons",
-    "react-select",
-    "react-spinners",
-    "axios",
-    "postcss",
-    "prettier",
-    "react-dom",
-    "tailwindcss",
-    "tailwindcss-animate",
-    "ui/ux",
-    "js",
-    "javascript",
     "typescript",
-    "eslint",
-    "html",
-    "css"
+    "supabase",
+    "realtime",
+    "chat app",
+    "passkeys",
+    "webauthn",
+    "accessibility"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sanidhyy/messenger-clone.git"
+    "url": "https://github.com/hungtruongOwolf/webmcp-challenge.git"
   },
-  "homepage": "https://github.com/sanidhyy/messenger-clone#readme",
+  "homepage": "https://github.com/hungtruongOwolf/webmcp-challenge#readme",
   "bugs": {
-    "url": "https://github.com/sanidhyy/messenger-clone/issues",
-    "email": "sanidhyyy@gmail.com"
+    "url": "https://github.com/hungtruongOwolf/webmcp-challenge/issues"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.19",
@@ -101,16 +79,6 @@
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   },
-  "funding": [
-    {
-      "type": "patreon",
-      "url": "https://www.patreon.com/sanidhy"
-    },
-    {
-      "type": "Buy me a coffee",
-      "url": "https://www.buymeacoffee.com/sanidhy"
-    }
-  ],
   "allowScripts": {
     "sharp@0.34.5": true,
     "unrs-resolver@1.12.2": true

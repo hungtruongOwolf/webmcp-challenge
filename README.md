@@ -1,319 +1,187 @@
 <a name="readme-top"></a>
 
-# Messenger Clone - A Real-Time Messaging App using Next.js 14.
+# Messenger Clone — a WebMCP-native chat app
 
-![Messenger Clone - A Real-Time Messaging App using Next.js 14.](/.github/images/img_main.png "Messenger Clone - A Real-Time Messaging App using Next.js 14.")
+A real-time Messenger-style chat app where an AI agent can drive the UI on the
+signed-in user's behalf through [WebMCP](https://github.com/webmachinelearning/webmcp)
+(`document.modelContext`) — read conversations, send messages, react, send
+stickers, summarize a whole thread, search, create groups — the same way a
+sighted user would click through the app, except entirely through natural
+language, in the browser tab the user is already signed into.
 
-[![Ask Me Anything!](https://flat.badgen.net/static/Ask%20me/anything?icon=github&color=black&scale=1.01)](https://github.com/sanidhyy "Ask Me Anything!")
-[![GitHub license](https://flat.badgen.net/github/license/sanidhyy/messenger-clone?icon=github&color=black&scale=1.01)](https://github.com/sanidhyy/messenger-clone/blob/main/LICENSE "GitHub license")
-[![Maintenance](https://flat.badgen.net/static/Maintained/yes?icon=github&color=black&scale=1.01)](https://github.com/sanidhyy/messenger-clone/commits/main "Maintenance")
-[![GitHub branches](https://flat.badgen.net/github/branches/sanidhyy/messenger-clone?icon=github&color=black&scale=1.01)](https://github.com/sanidhyy/messenger-clone/branches "GitHub branches")
-[![Github commits](https://flat.badgen.net/github/commits/sanidhyy/messenger-clone?icon=github&color=black&scale=1.01)](https://github.com/sanidhyy/messenger-clone/commits "Github commits")
-[![Vercel status](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://appmessenger.vercel.app/ "Vercel status")
-[![GitHub issues](https://flat.badgen.net/github/issues/sanidhyy/messenger-clone?icon=github&color=black&scale=1.01)](https://github.com/sanidhyy/messenger-clone/issues "GitHub issues")
-[![GitHub pull requests](https://flat.badgen.net/github/prs/sanidhyy/messenger-clone?icon=github&color=black&scale=1.01)](https://github.com/sanidhyy/messenger-clone/pulls "GitHub pull requests")
+**Live app:** https://messenger-clone-kappa-smoky.vercel.app
+**Repo:** https://github.com/hungtruongOwolf/webmcp-challenge
+
+![Conversation view](/.github/images/screenshot-light.jpg)
+![Conversation view, dark mode](/.github/images/screenshot-dark.jpg)
 
 <!-- Table of Contents -->
 <details>
+<summary><h2 style="display:inline">Table of Contents</h2></summary>
 
-<summary>
-
-# :notebook_with_decorative_cover: Table of Contents
-
-</summary>
-
-- [Folder Structure](#bangbang-folder-structure)
-- [Getting Started](#toolbox-getting-started)
-- [Screenshots](#camera-screenshots)
-- [Tech Stack](#gear-tech-stack)
-- [Stats](#wrench-stats)
-- [Contribute](#raised_hands-contribute)
-- [Acknowledgements](#gem-acknowledgements)
-- [Buy Me a Coffee](#coffee-buy-me-a-coffee)
-- [Follow Me](#rocket-follow-me)
-- [Learn More](#books-learn-more)
-- [Deploy on Vercel](#page_with_curl-deploy-on-vercel)
-- [Give A Star](#star-give-a-star)
-- [Star History](#star2-star-history)
-- [Give A Star](#star-give-a-star)
+- [What this is](#what-this-is)
+- [Chat features](#chat-features)
+- [WebMCP agent tools](#webmcp-agent-tools)
+- [Architecture](#architecture)
+- [Getting started](#getting-started)
+- [Testing](#testing)
+- [Folder structure](#folder-structure)
+- [Tech stack](#tech-stack)
+- [Credits](#credits)
 
 </details>
 
-## :bangbang: Folder Structure
+## What this is
 
-Here is the folder structure of this app.
+This started from an open-source Messenger clone tutorial (MongoDB + Prisma +
+NextAuth + Pusher + Cloudinary) and was rebuilt for the WebMCP Challenge: the
+data layer moved onto a single Supabase project (Postgres + row-level
+security + Realtime + Storage), auth became passkey-first for a
+click-once/tap-once sign-in that works well for voice and accessibility
+tooling, and a full agent tool layer was added on top so an AI agent (ChatGPT
+Desktop, Claude, or anything else that speaks WebMCP) can actually use the
+app instead of just describing it.
+
+The tool layer is scoped tightly: every tool call runs against the signed-in
+user's own Supabase session (RLS-enforced, never a service key), destructive
+actions (deleting/leaving a conversation) require a second, explicit
+`confirm: true` call instead of popping an in-page dialog nobody watching a
+voice session could click, and every response is clamped to a small character
+budget so it fits comfortably in an agent's context.
+
+## Chat features
+
+- 1:1 and group conversations, real-time messages, typing/seen state
+- Image and file attachments (private Storage buckets, signed URLs)
+- Message reactions (6 preset emoji) and stickers (20 preset emoji, sent as a
+  standalone oversized message)
+- Drafts that persist per conversation and resurface when you come back
+- Search within a conversation, and one-shot AI summaries that combine
+  read *and* unread history into a single coherent recap
+- AI image description for screen-reader / low-vision users
+- Passkey, email-link, and password sign-in; passkeys can be added/removed
+  from account settings on any signed-in device
+
+## WebMCP agent tools
+
+18 tools, registered from `lib/webmcp/register.ts`:
+
+| Tool | What it does |
+|---|---|
+| `list_conversations` | List the signed-in user's conversations |
+| `read_conversation` | Read a conversation's recent messages, paginated |
+| `search_messages` | Find a word/phrase in one conversation, optional date range |
+| `search_people` | Find someone by name or email |
+| `get_my_profile` | The signed-in user's own name/email/id |
+| `open_conversation` | Navigate the UI to a conversation |
+| `create_group` | Create a group chat, resolving names/emails automatically |
+| `draft_message` | Stage a reply without sending it |
+| `send_message` | Send a message (two-call pattern with `draft_message`) |
+| `delete_conversation` | Leave a conversation, or delete it if you're the last member |
+| `describe_image` | Vision-model description of a shared photo |
+| `read_file` | Read the contents of a shared file |
+| `read_link` | Fetch and summarize a URL shared in chat |
+| `sign_out` | End the session |
+| `setup_passkey` | Walk through enrolling a passkey |
+| `react_to_message` | Add/remove one of 6 preset emoji reactions |
+| `send_sticker` | Send one of 20 preset emoji as a standalone sticker |
+| `summarize_conversation` | One coherent narrative summary, read + unread combined |
+
+Every tool response goes through a shared budget clamp (`lib/webmcp/budget.ts`)
+so nothing blows past what an agent should reasonably read back.
+
+## Architecture
+
+- **Next.js 15 App Router, React 19, TypeScript, Tailwind.**
+- **Supabase Postgres** is the only backend: schema + row-level security in
+  `supabase/migrations/`. Authorization lives entirely in RLS policies (plus a
+  handful of `SECURITY DEFINER` RPCs for operations that need to see across a
+  membership boundary, like creating a conversation or leaving one) — server
+  code queries with the user's own session, never a service key.
+- **Realtime** is DB-trigger-driven: triggers call
+  `realtime.broadcast_changes(...)` on `conversation:<uuid>` (everyone in that
+  conversation) and `user:<uuid>` (one user's own sidebar/inbox) topics, so
+  the UI updates from the database, not from the API route that happened to
+  handle the write.
+- **Storage** (`chat-images`, `chat-files`, `avatars`) is three private
+  buckets; the app hands out long-lived signed URLs rather than making
+  anything public, with folder-scoped RLS as the real access boundary.
+- **Auth** supports passkeys (`@supabase/supabase-js`'s experimental WebAuthn
+  API, pinned to an exact version — see `app/libs/supabase/client.ts`), email
+  magic links, and passwords, built to stay usable via keyboard and screen
+  reader throughout (`docs/superpowers/` has the original design notes).
+
+## Getting started
+
+1. Node 20+, npm.
+2. `npm install` (a repo-level `.npmrc` already sets `legacy-peer-deps=true`
+   for a `react-select`/`@headlessui` peer-range mismatch that will resolve
+   itself once those packages catch up to React 19).
+3. Copy `.env.example` to `.env.local` and fill in:
+   - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — from your
+     Supabase project's Settings → API.
+   - `NEXT_PUBLIC_APP_ORIGIN` / `NEXT_PUBLIC_PASSKEY_RP_ID` — the exact origin
+     you'll run on and its hostname. Locally that's `http://localhost:3000`
+     and `localhost`; production needs a real HTTPS origin, and changing this
+     value later invalidates every passkey already enrolled against it.
+   - At least one of `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` /
+     `OPENAI_API_KEY`, for `describe_image` and `summarize_conversation`.
+4. Apply the schema: `npx supabase link --project-ref <your-project-ref>`
+   then `npx supabase db push`.
+5. `npm run dev`.
+
+`npm run build` also runs `verify:passkey-config`
+(`scripts/check-passkey-config.mjs`), which fails the build if
+`NEXT_PUBLIC_APP_ORIGIN`'s hostname doesn't exactly match
+`NEXT_PUBLIC_PASSKEY_RP_ID`, or if production is pointed at `localhost`.
+
+## Testing
 
 ```bash
-messenger-clone/
-  |- app/
-    |-- (site)/
-        |--- components/
-        |--- page.tsx
-    |-- actions/
-        |--- get-conversation-by-id.ts
-        |--- get-conversation.ts
-        |--- get-current-user.ts
-        |--- get-messages.ts
-        |--- get-session.ts
-        |--- get-users.ts
-    |-- auth/
-        |--- callback/
-        |--- passkey/
-    |-- api/
-        |--- conversations/[conversationId]
-        |--- messages/
-        |--- pusher/
-        |--- register/
-        |--- settings/
-    |-- components/
-        |--- inputs/
-        |--- modals/
-        |--- sidebar/
-        |--- active-status.tsx
-        |--- avatar-group.tsx
-        |--- avatar.tsx
-        |--- button.tsx
-        |--- empty-state.tsx
-        |--- loading-modal.tsx
-    |-- config/
-        |--- site.ts
-    |-- context/
-        |--- current-user-context.tsx
-        |--- toaster-context.ts
-    |-- conversations/
-        |--- [conversationId]/
-            |---- components/
-        |--- components/
-        |--- layout.tsx
-        |--- loading.tsx
-        |--- page.tsx
-    |-- hooks/
-        |--- use-active-channel.tsx
-        |--- use-active-list.tsx
-        |--- use-conversation.tsx
-        |--- use-other-user.tsx
-        |--- use-routes.tsx
-    |-- libs/
-        |--- prismadb.ts
-        |--- pusher.ts
-    |-- types/
-        |--- index.ts
-    |-- users/
-        |--- components/
-        |--- layout.tsx
-        |--- loading.tsx
-        |--- page.tsx
-    |-- favicon.ico
-    |-- globals.css
-    |-- layout.tsx
-  |- prisma/
-    |-- schema.prisma
-  |- public/
-    |-- images/
-        |--- logo.png
-        |--- placeholder.jpg
-  |- .env
-  |- .env.example
-  |- .eslintrc.json
-  |- .gitignore
-  |- middleware.ts
-  |- next.config.js
-  |- package-lock.json
-  |- package.json
-  |- postcss.config.js
-  |- tailwind.config.ts
-  |- tsconfig.json
-```
-
-<br />
-
-## :toolbox: Getting Started
-
-1. Make sure **Git** and **NodeJS** is installed.
-2. Clone this repository to your local computer.
-3. Copy `.env.example` to `.env` and provide the database, Cloudinary, Pusher, and Supabase project values. `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` identify the Supabase project; the anon key is public and relies on row-level security.
-4. Set `NEXT_PUBLIC_APP_ORIGIN` to the exact site origin and `NEXT_PUBLIC_PASSKEY_RP_ID` to that origin's hostname. Local development may use `http://localhost:3000` and `localhost`.
-5. Run `npm install --legacy-peer-deps`, then `npm run verify:passkey-config`.
-6. Start the application with `npm run dev`.
-
-### Authentication and WebMCP security
-
-Messenger supports passkeys, clickable email sign-in links, and passwords through Supabase. Users authenticate directly on the Messenger page so credentials and operating-system passkey prompts stay in the site's trusted UI; credentials, session objects, and tokens are never tool inputs or results.
-
-When the browser exposes `document.modelContext`, Messenger automatically registers the public connection-status tool while signed out and replaces it with tools bound to the current server-validated session after sign-in. Registrations receive an abort signal and are removed on logout, account change, or session expiry. Without WebMCP, the ordinary Conversations interface remains usable.
-
-ChatGPT desktop's built-in browser has its own browser session. Signing in to Messenger in a separate browser does not sign in that embedded browser; authenticate on the Messenger page opened inside ChatGPT desktop. Browser tool discovery is not an authentication bypass.
-
-### Testing
-
-```bash
-npm test
-npm run test:e2e
+npm test              # vitest, component/unit
+npm run test:e2e      # playwright
 npm run verify:passkey-config
 ```
 
-Browser tests require `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for a disposable Supabase test account. Keep those server-side process variables out of source control and do not expose them through `NEXT_PUBLIC_` variables. The manual browser, passkey, keyboard, and assistive-technology release matrix is in `docs/testing/accessible-auth-manual.md`.
+Playwright's accessible-auth spec needs a disposable Supabase test account via
+`E2E_USER_EMAIL` / `E2E_USER_PASSWORD` — keep those server-side, never behind
+a `NEXT_PUBLIC_` prefix.
 
-Production builds require a non-local HTTPS `NEXT_PUBLIC_APP_ORIGIN` whose hostname exactly equals `NEXT_PUBLIC_PASSKEY_RP_ID`. CI rejects missing values and localhost. Before release, also confirm Supabase email confirmation is enabled and complete the real-host passkey and email-link checks in the manual matrix.
+## Folder structure
 
-### :books: Additional Resources
+```
+messenger-clone/
+  app/
+    (site)/                  landing + sign-in
+    actions/                 server-side data fetchers
+    api/                     conversations, messages, describe, summarize, ...
+    auth/                    passkey enrollment, auth callback
+    components/              shared UI (auth, accessibility, inputs, modals)
+    context/                 current-user, WebMCP connection, confirm bridge
+    conversations/           conversation list + [conversationId] thread UI
+    hooks/                   use-conversation, use-passkey-readiness, ...
+    libs/                    supabase client/server/upload, auth gateway
+    webmcp/                  WebMCP connection provider + tool registry glue
+  lib/webmcp/
+    tools/                   one file per agent tool
+    register.ts              wires every tool into the WebMCP registry
+    budget.ts                shared output-size clamp
+  supabase/migrations/       schema, RLS, triggers, RPCs (15 migrations)
+  docs/superpowers/          original accessible-auth design/plan docs
+  e2e/, tests/               Playwright spec, Vitest setup
+```
 
-- **Next.js Documentation:** Explore the power of Next.js for building your web applications.
+## Tech stack
 
-  - [Next.js Documentation](https://nextjs.org/docs/)
+Next.js · React · TypeScript · Tailwind CSS · Supabase (Postgres, Auth,
+Realtime, Storage) · Vercel · Vitest · Playwright
 
-- **Tailwind CSS Documentation:** Dive into the documentation for Tailwind CSS, a utility-first CSS framework used in the project.
+## Credits
 
-  - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-
-- **Pusher Documentation:** Explore Pusher for adding real-time functionality to your applications.
-
-  - [Pusher Documentation](https://pusher.com/docs)
-
-- **React Icons Documentation:** Find and customize high-quality SVG icons for your React applications.
-
-  - [React Icons Documentation](https://react-icons.github.io/react-icons/)
-
-- **React Select Documentation:** Get to know more about React Select, a flexible and customizable select component.
-
-  - [React Select Documentation](https://react-select.com/home)
-
-- **React Hook Form Documentation:** Learn about React Hook Form for efficient form management in React.
-
-  - [React Hook Form Documentation](https://react-hook-form.com/get-started)
-
-- **Next Cloudinary Documentation:** Understand how to integrate Cloudinary for image and video management.
-
-  - [Next Cloudinary Documentation](https://cloudinary.com/documentation)
-
-- **Prisma Documentation:** Explore Prisma for database access in TypeScript and JavaScript.
-
-  - [Prisma Documentation](https://www.prisma.io/docs/)
-
-- **Axios Documentation:** Find information on how to use Axios for making HTTP requests.
-
-  - [Axios Documentation](https://axios-http.com/docs/intro)
-
-- **Zustand Documentation:** Learn about Zustand, a small and fast state management library.
-
-  - [Zustand Documentation](https://zustand.surge.sh/)
-
-- **React Hot Toast Documentation:** Understand how to use React Hot Toast for toast notifications in React applications.
-
-  - [React Hot Toast Documentation](https://react-hot-toast.com/)
-
-- **Headless UI Documentation:** Explore Headless UI, a set of completely unstyled UI components.
-  - [Headless UI Documentation](https://headlessui.dev/)
-
-**NOTE:** Please make sure to keep your API keys and configuration values secure and do not expose them publicly.
-
-### :raising_hand: Need Help?
-
-If you run into issues during installation or setup:
-
-- **GitHub Discussions** — [Open a Q&A discussion](https://github.com/sanidhyy/messenger-clone/discussions/new?category=q-a) for setup and troubleshooting help.
-- **Email** — [sanidhyyy@gmail.com](mailto:sanidhyyy@gmail.com)
-- **Discord** — `@sanidhyy`
-
-## :camera: Screenshots:
-
-![Modern UI/UX](/.github/images/img1.png "Modern UI/UX")
-
-![Realtime Messaging](/.github/images/img2.png "Realtime Messaging")
-
-![Create Group Chats](/.github/images/img3.png "Create Group Chats")
-
-![Edit your Profile](/.github/images/img4.png "Edit your Profile")
-
-## :gear: Tech Stack
-
-[![React JS](https://skillicons.dev/icons?i=react "React JS")](https://react.dev/ "React JS") [![Next JS](https://skillicons.dev/icons?i=next "Next JS")](https://nextjs.org/ "Next JS") [![Typescript](https://skillicons.dev/icons?i=ts "Typescript")](https://www.typescriptlang.org/ "Typescript") [![Tailwind CSS](https://skillicons.dev/icons?i=tailwind "Tailwind CSS")](https://tailwindcss.com/ "Tailwind CSS") [![Vercel](https://skillicons.dev/icons?i=vercel "Vercel")](https://vercel.app/ "Vercel") [![Prisma](https://skillicons.dev/icons?i=prisma "Prisma")](https://prisma.io/ "Prisma")
-
-## :wrench: Stats
-
-[![Stats for Messenger Clone](/.github/images/stats.svg "Stats for Messenger Clone")](https://pagespeed.web.dev/analysis?url=https://appmessenger.vercel.app/ "Stats for Messenger Clone")
-
-## :raised_hands: Contribute
-
-You might encounter some bugs while using this app. You are more than welcome to contribute. Just submit changes via pull request and I will review them before merging. Make sure you follow community guidelines.
-
-## :gem: Acknowledgements
-
-Useful resources and dependencies that are used in Messenger Clone.
-
-- Thanks to CodeWithAntonio: https://codewithantonio.com/
-- [@headlessui/react](https://www.npmjs.com/package/@headlessui/react) - Version: ^1.7.17
-- [@next-auth/prisma-adapter](https://www.npmjs.com/package/@next-auth/prisma-adapter) - Version: ^1.0.7
-- [@prisma/client](https://www.npmjs.com/package/@prisma/client) - Version: ^5.7.0
-- [@tailwindcss/forms](https://www.npmjs.com/package/@tailwindcss/forms) - Version: ^0.5.7
-- [axios](https://www.npmjs.com/package/axios) - Version: ^1.6.2
-- [bcrypt](https://www.npmjs.com/package/bcrypt) - Version: ^5.1.1
-- [clsx](https://www.npmjs.com/package/clsx) - Version: ^2.0.0
-- [date-fns](https://www.npmjs.com/package/date-fns) - Version: ^2.30.0
-- [lodash](https://www.npmjs.com/package/lodash) - Version: ^4.17.21
-- [next](https://www.npmjs.com/package/next) - Version: 14.0.3
-- [next-auth](https://www.npmjs.com/package/next-auth) - Version: ^4.24.5
-- [next-cloudinary](https://www.npmjs.com/package/next-cloudinary) - Version: ^5.11.0
-- [pusher](https://www.npmjs.com/package/pusher) - Version: ^5.2.0
-- [pusher-js](https://www.npmjs.com/package/pusher-js) - Version: ^8.4.0-rc2
-- [react](https://www.npmjs.com/package/react) - Version: ^18
-- [react-dom](https://www.npmjs.com/package/react-dom) - Version: ^18
-- [react-hook-form](https://www.npmjs.com/package/react-hook-form) - Version: ^7.48.2
-- [react-hot-toast](https://www.npmjs.com/package/react-hot-toast) - Version: ^2.4.1
-- [react-icons](https://www.npmjs.com/package/react-icons) - Version: ^4.12.0
-- [react-select](https://www.npmjs.com/package/react-select) - Version: ^5.8.0
-- [react-spinners](https://www.npmjs.com/package/react-spinners) - Version: ^0.13.8
-- [zustand](https://www.npmjs.com/package/zustand) - Version: ^4.4.7
-- [@types/bcrypt](https://www.npmjs.com/package/@types/bcrypt) - Version: ^5.0.2
-- [@types/lodash](https://www.npmjs.com/package/@types/lodash) - Version: ^4.14.202
-- [@types/node](https://www.npmjs.com/package/@types/node) - Version: ^20
-- [@types/react](https://www.npmjs.com/package/@types/react) - Version: ^18
-- [@types/react-dom](https://www.npmjs.com/package/@types/react-dom) - Version: ^18
-- [autoprefixer](https://www.npmjs.com/package/autoprefixer) - Version: ^10.0.1
-- [eslint](https://www.npmjs.com/package/eslint) - Version: ^8
-- [eslint-config-next](https://www.npmjs.com/package/eslint-config-next) - Version: 14.0.3
-- [postcss](https://www.npmjs.com/package/postcss) - Version: ^8
-- [prisma](https://www.npmjs.com/package/prisma) - Version: ^5.7.0
-- [tailwindcss](https://www.npmjs.com/package/tailwindcss) - Version: ^3.3.0
-- [typescript](https://www.npmjs.com/package/typescript) - Version: ^5
-
-## :coffee: Buy Me a Coffee
-
-[<img src="https://img.shields.io/badge/Buy_Me_A_Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" width="200" />](https://www.buymeacoffee.com/sanidhy "Buy me a Coffee")
-
-## :rocket: Follow Me
-
-[![GitHub followers](https://img.shields.io/github/followers/sanidhyy?style=social&label=Follow&maxAge=2592000)](https://github.com/sanidhyy "Follow Me")
-[![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fx.com%2F_sanidhyy)](https://x.com/intent/tweet?text=Wow:&url=https%3A%2F%2Fgithub.com%2Fsanidhyy%2Fmedical-chat-app "Tweet")
-
-## :books: Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## :page_with_curl: Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
-
-## :star: Give A Star
-
-You can also give this repository a star to show more people and they can use this repository.
-
-## :star2: Star History
-
-<a href="https://star-history.com/#sanidhyy/messenger-clone&Timeline">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=sanidhyy/messenger-clone&type=Timeline&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=sanidhyy/messenger-clone&type=Timeline" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=sanidhyy/messenger-clone&type=Timeline" />
-  </picture>
-</a>
+Scaffolded from an open-source Next.js Messenger clone tutorial
+([CodeWithAntonio](https://codewithantonio.com/) / sanidhyy) — the original
+MIT license notice is preserved in `LICENSE`. The data layer, auth, realtime
+model, and the entire WebMCP agent tool layer were rebuilt for this project.
 
 <br />
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
