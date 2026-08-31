@@ -23,6 +23,9 @@ export type EmailAuthFormProps = {
   gateway: AuthGateway;
   onAuthenticated: () => void;
   onPasskeyEnrollment: () => void;
+  isPending: boolean;
+  onSubmissionStart: () => boolean;
+  onSubmissionEnd: () => void;
 };
 
 export const EmailAuthForm = ({
@@ -31,9 +34,11 @@ export const EmailAuthForm = ({
   gateway,
   onAuthenticated,
   onPasskeyEnrollment,
+  isPending,
+  onSubmissionStart,
+  onSubmissionEnd,
 }: EmailAuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
-  const [isBusy, setIsBusy] = useState(false);
   const [focusSummaryRequested, setFocusSummaryRequested] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const {
@@ -57,7 +62,7 @@ export const EmailAuthForm = ({
   }, [errors, focusSummaryRequested]);
 
   const sendEmailLink = async (values: EmailAuthValues) => {
-    setIsBusy(true);
+    if (!onSubmissionStart()) return;
     beginAuthentication();
     const result = await gateway.sendEmailLink({
       email: values.email,
@@ -65,7 +70,7 @@ export const EmailAuthForm = ({
       returnPath,
       shouldCreateUser: variant === "REGISTER",
     });
-    setIsBusy(false);
+    onSubmissionEnd();
 
     if (!result.ok) {
       returnToSignedOut(authFailureMessage(result.code));
@@ -80,7 +85,10 @@ export const EmailAuthForm = ({
   };
 
   const submitPassword = async (values: EmailAuthValues) => {
+    if (!onSubmissionStart()) return;
+
     if (!values.password) {
+      onSubmissionEnd();
       setError("password", {
         type: "required",
         message: "Password is required.",
@@ -89,14 +97,13 @@ export const EmailAuthForm = ({
       return;
     }
 
-    setIsBusy(true);
     beginAuthentication();
     if (variant === "LOGIN") {
       const result = await gateway.signInWithPassword({
         email: values.email,
         password: values.password,
       });
-      setIsBusy(false);
+      onSubmissionEnd();
       if (!result.ok) {
         returnToSignedOut(authFailureMessage(result.code));
         return;
@@ -111,7 +118,7 @@ export const EmailAuthForm = ({
       password: values.password,
       returnPath,
     });
-    setIsBusy(false);
+    onSubmissionEnd();
     if (!result.ok) {
       returnToSignedOut(authFailureMessage(result.code));
       return;
@@ -155,7 +162,7 @@ export const EmailAuthForm = ({
           autoComplete="name"
           register={register}
           errors={errors}
-          disabled={isBusy}
+          disabled={isPending}
           required
         />
       )}
@@ -167,14 +174,14 @@ export const EmailAuthForm = ({
         autoComplete="email"
         register={register}
         errors={errors}
-        disabled={isBusy}
+        disabled={isPending}
         required
       />
 
       <Button
         type="button"
         onClick={emailLinkAction}
-        disabled={isBusy}
+        disabled={isPending}
         fullWidth
       >
         Email me a sign-in link
@@ -199,10 +206,10 @@ export const EmailAuthForm = ({
         }
         register={register}
         errors={errors}
-        disabled={isBusy}
+        disabled={isPending}
       />
 
-      <Button type="submit" disabled={isBusy} fullWidth secondary>
+      <Button type="submit" disabled={isPending} fullWidth secondary>
         {variant === "LOGIN"
           ? "Sign in with password"
           : "Create account with password"}

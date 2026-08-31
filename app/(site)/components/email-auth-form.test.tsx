@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthGateway, AuthResult } from "@/app/libs/auth/auth-gateway";
@@ -13,6 +14,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 const success: AuthResult = { ok: true, value: undefined };
+
+const deferred = <T,>() => {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+};
 
 const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
   signInWithPasskey: vi.fn(async () => success),
@@ -50,9 +59,49 @@ const renderForm = ({
         gateway={gateway}
         onAuthenticated={onAuthenticated}
         onPasskeyEnrollment={onPasskeyEnrollment}
+        isPending={false}
+        onSubmissionStart={() => true}
+        onSubmissionEnd={() => undefined}
       />
     </WebMCPConnectionProvider>
   );
+
+const PendingPasskeyHarness = ({ gateway }: { gateway: AuthGateway }) => {
+  const [isPending, setIsPending] = useState(false);
+
+  const startSubmission = () => {
+    if (isPending) return false;
+    setIsPending(true);
+    return true;
+  };
+
+  const endSubmission = () => setIsPending(false);
+
+  const startPasskey = async () => {
+    if (!startSubmission()) return;
+    await gateway.signInWithPasskey();
+    endSubmission();
+  };
+
+  return (
+    <WebMCPConnectionProvider modelContext={null} currentUserId={null}>
+      <ConnectionStatusIndicator />
+      <button type="button" onClick={startPasskey} disabled={isPending}>
+        Start passkey request
+      </button>
+      <EmailAuthForm
+        variant="LOGIN"
+        returnPath="/users"
+        gateway={gateway}
+        onAuthenticated={() => undefined}
+        onPasskeyEnrollment={() => undefined}
+        isPending={isPending}
+        onSubmissionStart={startSubmission}
+        onSubmissionEnd={endSubmission}
+      />
+    </WebMCPConnectionProvider>
+  );
+};
 
 describe("EmailAuthForm", () => {
   beforeEach(() => {
@@ -210,6 +259,47 @@ describe("EmailAuthForm", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent(
       "Check your email to finish creating your account."
+    );
+  });
+
+  it("blocks email and password actions while the parent passkey request is pending", async () => {
+    const user = userEvent.setup();
+    const passkey = deferred<AuthResult>();
+    const sendEmailLink = vi.fn(async () => success);
+    const signInWithPassword = vi.fn(async () => success);
+    const gateway = createGateway({
+      signInWithPasskey: vi.fn(() => passkey.promise),
+      sendEmailLink,
+      signInWithPassword,
+    });
+    render(<PendingPasskeyHarness gateway={gateway} />);
+
+    await user.type(screen.getByLabelText("Email"), "reader@example.org");
+    await user.type(screen.getByLabelText("Password"), "secret phrase");
+    await user.click(
+      screen.getByRole("button", { name: "Start passkey request" })
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Email me a sign-in link" })
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Sign in with password" })
+    );
+
+    expect(sendEmailLink).not.toHaveBeenCalled();
+    expect(signInWithPassword).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Email me a sign-in link" })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Sign in with password" })
+    ).toBeDisabled();
+
+    passkey.resolve(success);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Email me a sign-in link" })
+      ).toBeEnabled()
     );
   });
 });
