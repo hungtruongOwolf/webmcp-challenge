@@ -1,22 +1,29 @@
 import { NextResponse } from "next/server";
-
+import {
+  buildPasskeyEnrollmentPath,
+  sanitizeAuthReturnPath,
+} from "@/app/libs/auth/return-path";
 import { createClient } from "@/app/libs/supabase/server";
 
-/**
- * Exchanges an OAuth / email-link code for a session cookie.
- * Unused while email+password is the only bootstrap path, but this is the
- * redirect target the moment a provider is enabled in the dashboard.
- */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/users";
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const returnPath = sanitizeAuthReturnPath(url.searchParams.get("next"));
+  const enrollPasskey = url.searchParams.get("enroll") === "passkey";
 
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    if (!error) {
+      const destination = enrollPasskey
+        ? buildPasskeyEnrollmentPath(returnPath)
+        : returnPath;
+      return NextResponse.redirect(new URL(destination, url.origin));
+    }
   }
 
-  return NextResponse.redirect(`${origin}/?error=auth`);
+  const failure = new URL("/", url.origin);
+  failure.searchParams.set("error", "auth_link_invalid");
+  failure.searchParams.set("next", returnPath);
+  return NextResponse.redirect(failure);
 }
