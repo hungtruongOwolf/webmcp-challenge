@@ -2,12 +2,19 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { format, isToday, isYesterday, isThisWeek } from "date-fns";
+import { HiOutlineDocument, HiOutlineArrowDownTray } from "react-icons/hi2";
 
 import type { FullMessageType } from "@/app/types";
 import { useCurrentUser } from "@/app/context/current-user-context";
 import { useUiSettings } from "@/app/context/ui-settings-context";
 import { avatarColors, initialsFromName } from "@/app/libs/avatar-color";
 import Avatar from "@/app/components/avatar";
+
+function formatBytes(bytes?: number | null) {
+  if (!bytes) return "";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 type BodyProps = {
   messages: FullMessageType[];
@@ -160,6 +167,36 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                                 style={{ display: "block", maxWidth: 260, maxHeight: 320, objectFit: "cover" }}
                               />
                             </button>
+                          ) : message.file_url ? (
+                            <a
+                              href={message.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "36px 1fr auto",
+                                alignItems: "center",
+                                gap: 10,
+                                width: 240,
+                                padding: "10px 12px",
+                                borderRadius: radius,
+                                background: isOwn ? "var(--bub-out)" : "var(--bub-in)",
+                                color: isOwn ? "var(--bub-out-t)" : "var(--bub-in-t)",
+                                textDecoration: "none",
+                                boxShadow: "0 0 0 0.5px var(--hair)",
+                              }}
+                            >
+                              <span aria-hidden style={{ display: "grid", placeItems: "center" }}>
+                                <HiOutlineDocument size={22} />
+                              </span>
+                              <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {message.file_name || "File"}
+                                </span>
+                                <span style={{ fontSize: 11.5, opacity: 0.75 }}>{formatBytes(message.file_size)}</span>
+                              </span>
+                              <HiOutlineArrowDownTray size={16} aria-hidden />
+                            </a>
                           ) : (
                             <div
                               style={{

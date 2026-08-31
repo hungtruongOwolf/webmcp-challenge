@@ -12,7 +12,7 @@ const describeWithGemini = async (imageUrl: string, apiKey: string) => {
   const contentType = image.headers.get("content-type") || "image/jpeg";
   const bytes = Buffer.from(await image.arrayBuffer()).toString("base64");
 
-  const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {

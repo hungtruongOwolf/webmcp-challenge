@@ -2,6 +2,7 @@ import type { ToolActivityEvent, ToolContext } from "@/lib/webmcp/types";
 import { errorResult, clampOutput } from "@/lib/webmcp/budget";
 import { listConversations } from "@/lib/webmcp/tools/list-conversations";
 import { readConversation } from "@/lib/webmcp/tools/read-conversation";
+import { searchMessages } from "@/lib/webmcp/tools/search-messages";
 import { searchPeople } from "@/lib/webmcp/tools/search-people";
 import { getMyProfile } from "@/lib/webmcp/tools/get-my-profile";
 import { openConversation } from "@/lib/webmcp/tools/open-conversation";
@@ -14,6 +15,7 @@ import { describeImage } from "@/lib/webmcp/tools/describe-image";
 const TOOL_FACTORIES = [
   listConversations,
   readConversation,
+  searchMessages,
   searchPeople,
   getMyProfile,
   openConversation,

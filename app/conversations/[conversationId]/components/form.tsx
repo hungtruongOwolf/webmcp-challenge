@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import axios from "axios";
+import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import type { FieldValues, SubmitHandler } from "react-hook-form";
-import { CldUploadButton } from "next-cloudinary";
-import { HiPaperAirplane, HiOutlinePhoto } from "react-icons/hi2";
+import { HiPaperAirplane, HiOutlinePhoto, HiOutlinePaperClip } from "react-icons/hi2";
 
 import useConversation from "@/app/hooks/use-conversation";
+import { createClient } from "@/app/libs/supabase/client";
+import { uploadChatImage, uploadChatFile } from "@/app/libs/supabase/upload";
+
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 const Form = () => {
   const { conversationId } = useConversation();
   const [draft, setDraft] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { handleSubmit, reset } = useForm<FieldValues>({
     defaultValues: { message: "" },
@@ -29,8 +37,53 @@ const Form = () => {
     axios.post("/api/messages", { message, conversationId });
   };
 
-  const handleUpload = (result: any) => {
-    axios.post("/api/messages", { image: result?.info?.secure_url, conversationId });
+  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !conversationId) return;
+
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error("Images are limited to 4 MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const image = await uploadChatImage(supabase, conversationId, file);
+      await axios.post("/api/messages", { image, conversationId });
+    } catch {
+      toast.error("Couldn't upload that image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !conversationId) return;
+
+    if (file.size > MAX_FILE_BYTES) {
+      toast.error("Files are limited to 20 MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const fileUrl = await uploadChatFile(supabase, conversationId, file);
+      await axios.post("/api/messages", {
+        conversationId,
+        fileUrl,
+        fileName: file.name,
+        fileSize: file.size,
+      });
+    } catch {
+      toast.error("Couldn't upload that file.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -46,25 +99,58 @@ const Form = () => {
       }}
     >
       <div style={{ width: "100%", maxWidth: 760, display: "flex", alignItems: "flex-end", gap: 10 }}>
-        <CldUploadButton
-          options={{ maxFiles: 1, maxFileSize: 4000000 }}
-          onUpload={handleUpload}
-          uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_PRESET}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          hidden
+          onChange={onPickImage}
+        />
+        <button
+          type="button"
+          aria-label="Send a photo"
+          disabled={uploading}
+          onClick={() => imageInputRef.current?.click()}
+          className="gm-icon-btn"
+          style={{
+            flex: "none",
+            width: 44,
+            height: 44,
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "inset 0 0 0 0.5px var(--hair)",
+            opacity: uploading ? 0.6 : 1,
+          }}
         >
-          <span
-            aria-label="Send a photo"
-            className="gm-icon-btn"
-            style={{
-              width: 44,
-              height: 44,
-              display: "grid",
-              placeItems: "center",
-              boxShadow: "inset 0 0 0 0.5px var(--hair)",
-            }}
-          >
-            <HiOutlinePhoto size={19} />
-          </span>
-        </CldUploadButton>
+          <HiOutlinePhoto size={19} />
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+          hidden
+          onChange={onPickFile}
+        />
+        <button
+          type="button"
+          aria-label="Attach a file"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          className="gm-icon-btn"
+          style={{
+            flex: "none",
+            width: 44,
+            height: 44,
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "inset 0 0 0 0.5px var(--hair)",
+            opacity: uploading ? 0.6 : 1,
+          }}
+        >
+          <HiOutlinePaperClip size={19} />
+        </button>
+
         <form
           onSubmit={handleSubmit(onSubmit)}
           style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-end", gap: 10 }}

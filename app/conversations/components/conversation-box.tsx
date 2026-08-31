@@ -46,6 +46,7 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({ data, selected }) => 
 
   const lastMessageText = useMemo(() => {
     if (lastMessage?.image) return "Sent an image";
+    if (lastMessage?.file_url) return `Sent a file: ${lastMessage.file_name || "attachment"}`;
     if (lastMessage?.body) return lastMessage.body;
 
     return "Started a conversation";
