@@ -48,6 +48,7 @@ const createFakeModelContext = () => {
       registrations.filter((item) => !item.aborted).map((item) => item.name),
     abortedRegistrationCount: () =>
       registrations.filter((item) => item.aborted).length,
+    registrationCount: () => registrations.length,
   });
 };
 
@@ -348,6 +349,120 @@ describe("WebMCPConnectionProvider", () => {
     );
     expect(modelContext.activeNames()).toEqual([]);
     expect(modelContext.abortedRegistrationCount()).toBe(2);
+    expect(clearSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains session expiry when local sign-out publishes a signed-out user", async () => {
+    const modelContext = createFakeModelContext();
+    const ExpiryActions = () => {
+      const { beginAuthentication, reportSessionExpired } =
+        useWebMCPConnection();
+      return (
+        <>
+          <button type="button" onClick={reportSessionExpired}>
+            Expire session
+          </button>
+          <button type="button" onClick={beginAuthentication}>
+            Begin authentication
+          </button>
+        </>
+      );
+    };
+    const { rerender } = render(
+      <WebMCPConnectionProvider
+        modelContext={modelContext}
+        currentUserId="user-a"
+        registry={lifecycleTestRegistry}
+        clearSession={async () => undefined}
+      >
+        <ExpiryActions />
+        <ConnectionStatusIndicator />
+      </WebMCPConnectionProvider>
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Signed in. Messenger connected."
+      )
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expire session" }));
+    rerender(
+      <WebMCPConnectionProvider
+        modelContext={modelContext}
+        currentUserId={null}
+        registry={lifecycleTestRegistry}
+        clearSession={async () => undefined}
+      >
+        <ExpiryActions />
+        <ConnectionStatusIndicator />
+      </WebMCPConnectionProvider>
+    );
+
+    await act(async () => Promise.resolve());
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your session expired. Nothing was sent. Sign in again."
+    );
+    expect(screen.getByRole("link", { name: "Sign in again" })).toHaveAttribute(
+      "href",
+      "/?next=%2Fconversations"
+    );
+    expect(modelContext.activeNames()).toEqual([]);
+    expect(modelContext.registrationCount()).toBe(2);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Begin authentication" })
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Signing in…");
+    expect(
+      screen.queryByRole("link", { name: "Sign in again" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("consumes local sign-out rejection while preserving session expiry", async () => {
+    const modelContext = createFakeModelContext();
+    let rejectCleanup: ((reason: Error) => void) | undefined;
+    const cleanupPromise = new Promise<void>((_resolve, reject) => {
+      rejectCleanup = reject;
+    });
+    const catchCleanupRejection = vi.spyOn(cleanupPromise, "catch");
+    void cleanupPromise.then(undefined, () => undefined);
+    const clearSession = vi.fn(() => cleanupPromise);
+    const ExpireButton = () => {
+      const { reportSessionExpired } = useWebMCPConnection();
+      return (
+        <button type="button" onClick={reportSessionExpired}>
+          Expire session
+        </button>
+      );
+    };
+    render(
+      <WebMCPConnectionProvider
+        modelContext={modelContext}
+        currentUserId="user-a"
+        registry={lifecycleTestRegistry}
+        clearSession={clearSession}
+      >
+        <ExpireButton />
+        <ConnectionStatusIndicator />
+      </WebMCPConnectionProvider>
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Signed in. Messenger connected."
+      )
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Expire session" }));
+    rejectCleanup?.(new Error("storage unavailable"));
+    await act(async () => Promise.resolve());
+
+    expect(catchCleanupRejection).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your session expired. Nothing was sent. Sign in again."
+    );
+    expect(screen.getByRole("link", { name: "Sign in again" })).toBeVisible();
+    expect(modelContext.activeNames()).toEqual([]);
+    expect(modelContext.registrationCount()).toBe(2);
     expect(clearSession).toHaveBeenCalledTimes(1);
   });
 

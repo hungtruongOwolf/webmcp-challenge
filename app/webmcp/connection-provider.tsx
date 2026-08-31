@@ -98,6 +98,9 @@ export const WebMCPConnectionProvider = ({
   );
   const generationRef = useRef(0);
   const activeControllerRef = useRef<AbortController | null>(null);
+  const sessionExpiredRef = useRef(false);
+  const expiredUserIdRef = useRef<string | null>(null);
+  const signedOutAfterExpiryRef = useRef(false);
 
   stateRef.current = state;
   pathnameRef.current = pathname;
@@ -116,11 +119,17 @@ export const WebMCPConnectionProvider = ({
   }, []);
 
   const beginAuthentication = useCallback(() => {
+    sessionExpiredRef.current = false;
+    expiredUserIdRef.current = null;
+    signedOutAfterExpiryRef.current = false;
     transition({ type: "AUTH_STARTED" });
   }, [transition]);
 
   const returnToSignedOut = useCallback(
     (nextMessage: string) => {
+      sessionExpiredRef.current = false;
+      expiredUserIdRef.current = null;
+      signedOutAfterExpiryRef.current = false;
       transition({ type: "SIGNED_OUT" });
       setMessage(nextMessage);
     },
@@ -128,11 +137,14 @@ export const WebMCPConnectionProvider = ({
   );
 
   const reportSessionExpired = useCallback(() => {
+    sessionExpiredRef.current = true;
+    expiredUserIdRef.current = stateRef.current.userId;
+    signedOutAfterExpiryRef.current = false;
     generationRef.current += 1;
     activeControllerRef.current?.abort();
     activeControllerRef.current = null;
     transition({ type: "SESSION_EXPIRED" });
-    void clearSession();
+    void clearSession().catch(() => undefined);
   }, [clearSession, transition]);
 
   const retryConnection = useCallback(() => {
@@ -150,6 +162,10 @@ export const WebMCPConnectionProvider = ({
 
     const registerScope = async () => {
       if (currentUserId === null) {
+        if (sessionExpiredRef.current) {
+          signedOutAfterExpiryRef.current = true;
+          return;
+        }
         transition({ type: "SIGNED_OUT" });
         if (modelContext === null) return;
 
@@ -165,6 +181,16 @@ export const WebMCPConnectionProvider = ({
           if (isCurrent()) controller.abort();
         }
         return;
+      }
+
+      if (sessionExpiredRef.current) {
+        const isNewValidatedUser =
+          signedOutAfterExpiryRef.current ||
+          currentUserId !== expiredUserIdRef.current;
+        if (!isNewValidatedUser) return;
+        sessionExpiredRef.current = false;
+        expiredUserIdRef.current = null;
+        signedOutAfterExpiryRef.current = false;
       }
 
       transition({ type: "SESSION_READY", userId: currentUserId });
