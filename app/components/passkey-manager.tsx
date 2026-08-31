@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
 import { HiOutlineFingerPrint, HiOutlineTrash } from "react-icons/hi2";
 
 import Button from "@/app/components/button";
@@ -40,7 +41,9 @@ const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
       setPasskeys(result.value);
     } else {
       setPasskeys([]);
-      announce(authFailureMessage(result.code));
+      const message = authFailureMessage(result.code);
+      announce(message);
+      toast.error(message);
     }
     setIsLoading(false);
   }, [announce, getGateway]);
@@ -58,9 +61,12 @@ const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
     const result = await getGateway().registerPasskey();
     if (result.ok) {
       announce("Passkey added.");
+      toast.success("Passkey added.");
       await refresh();
     } else {
-      announce(authFailureMessage(result.code));
+      const message = authFailureMessage(result.code);
+      announce(message);
+      toast.error(message);
     }
     setIsBusy(false);
   };
@@ -70,9 +76,12 @@ const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
     const result = await getGateway().deletePasskey(id);
     if (result.ok) {
       announce("Passkey removed.");
+      toast.success("Passkey removed.");
       await refresh();
     } else {
-      announce(authFailureMessage(result.code));
+      const message = authFailureMessage(result.code);
+      announce(message);
+      toast.error(message);
     }
     setIsBusy(false);
   };

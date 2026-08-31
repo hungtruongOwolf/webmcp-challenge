@@ -1,5 +1,6 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { ilikeFilterValue } from "@/lib/webmcp/pg-filter";
 
 export const searchPeople: ToolFactory = (ctx) => ({
   name: "search_people",
@@ -24,7 +25,7 @@ export const searchPeople: ToolFactory = (ctx) => ({
       .from("profiles")
       .select("id, name, email")
       .neq("id", ctx.currentUser.id)
-      .or(`name.ilike.%${query}%,email.ilike.%${query}%`)
+      .or(`name.ilike.${ilikeFilterValue(query)},email.ilike.${ilikeFilterValue(query)}`)
       .limit(10);
 
     if (error) return errorResult(`Could not search people: ${error.message}`);

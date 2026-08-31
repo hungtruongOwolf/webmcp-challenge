@@ -17,6 +17,7 @@ const STICKER_SET = new Set<string>(STICKER_EMOJI);
 
 function formatBytes(bytes?: number | null) {
   if (!bytes) return "";
+  if (bytes < 1024) return "<1 KB";
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

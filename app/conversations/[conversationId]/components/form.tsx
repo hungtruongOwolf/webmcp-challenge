@@ -97,8 +97,13 @@ const Form = () => {
     setUploading(true);
     try {
       const supabase = createClient();
-      const image = await uploadChatImage(supabase, conversationId, file);
-      await axios.post("/api/messages", { image, conversationId });
+      const { url, remove } = await uploadChatImage(supabase, conversationId, file);
+      try {
+        await axios.post("/api/messages", { image: url, conversationId });
+      } catch (err) {
+        await remove().catch(() => {});
+        throw err;
+      }
     } catch {
       toast.error("Couldn't upload that image.");
     } finally {
@@ -131,13 +136,18 @@ const Form = () => {
     setUploading(true);
     try {
       const supabase = createClient();
-      const fileUrl = await uploadChatFile(supabase, conversationId, file);
-      await axios.post("/api/messages", {
-        conversationId,
-        fileUrl,
-        fileName: file.name,
-        fileSize: file.size,
-      });
+      const { url: fileUrl, remove } = await uploadChatFile(supabase, conversationId, file);
+      try {
+        await axios.post("/api/messages", {
+          conversationId,
+          fileUrl,
+          fileName: file.name,
+          fileSize: file.size,
+        });
+      } catch (err) {
+        await remove().catch(() => {});
+        throw err;
+      }
     } catch {
       toast.error("Couldn't upload that file.");
     } finally {

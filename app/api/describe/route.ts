@@ -106,11 +106,25 @@ export async function POST(req: Request) {
       );
     }
 
-    const description = anthropicKey
-      ? await describeWithClaude(imageUrl, anthropicKey)
-      : geminiKey
-        ? await describeWithGemini(imageUrl, geminiKey)
-        : await describeWithOpenAI(imageUrl, openaiKey!);
+    // Each configured provider is actually tried in turn -- a transient
+    // failure on one (rate limit, timeout) falls through to the next
+    // instead of failing the whole request while other keys sit unused.
+    const providers: Array<() => Promise<string | undefined>> = [];
+    if (anthropicKey) providers.push(() => describeWithClaude(imageUrl, anthropicKey));
+    if (geminiKey) providers.push(() => describeWithGemini(imageUrl, geminiKey));
+    if (openaiKey) providers.push(() => describeWithOpenAI(imageUrl, openaiKey));
+
+    let description: string | undefined;
+    let lastError: unknown;
+    for (const provider of providers) {
+      try {
+        description = await provider();
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (description === undefined && lastError) throw lastError;
 
     return NextResponse.json({ description: description || "No description available." });
   } catch (error: unknown) {

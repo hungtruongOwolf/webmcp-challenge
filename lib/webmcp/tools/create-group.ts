@@ -1,5 +1,6 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { ilikeFilterValue } from "@/lib/webmcp/pg-filter";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -45,7 +46,7 @@ export const createGroup: ToolFactory = (ctx) => ({
         .from("profiles")
         .select("id, name, email")
         .neq("id", ctx.currentUser.id)
-        .or(`name.ilike.%${raw}%,email.ilike.%${raw}%`)
+        .or(`name.ilike.${ilikeFilterValue(raw)},email.ilike.${ilikeFilterValue(raw)}`)
         .limit(5);
 
       if (error) return errorResult(`Could not look up "${raw}": ${error.message}`);

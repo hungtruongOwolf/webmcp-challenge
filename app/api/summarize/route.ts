@@ -88,8 +88,13 @@ export async function POST(req: Request) {
     });
 
     let transcript = lines.join("\n");
+    let transcriptTruncated = false;
     if (transcript.length > MAX_TRANSCRIPT_CHARS) {
-      transcript = transcript.slice(0, MAX_TRANSCRIPT_CHARS) + "\n… (older messages truncated)";
+      // Keep the tail (most recent messages) -- the whole point of this
+      // feature is catching someone up on what's happened lately, so the
+      // newest content is what must survive truncation, not the oldest.
+      transcript = "(earlier messages truncated) …\n" + transcript.slice(-MAX_TRANSCRIPT_CHARS);
+      transcriptTruncated = true;
     }
 
     const fullPrompt = `${PROMPT}\n\n${transcript}`;
@@ -105,16 +110,30 @@ export async function POST(req: Request) {
       );
     }
 
-    const summary = anthropicKey
-      ? await generateWithClaude([{ type: "text", text: fullPrompt }], anthropicKey)
-      : geminiKey
-        ? await generateWithGemini([{ text: fullPrompt }], geminiKey)
-        : await generateWithOpenAI(fullPrompt, openaiKey!);
+    // Each configured provider is actually tried in turn -- a transient
+    // failure on one (rate limit, timeout) falls through to the next
+    // instead of failing the whole request while other keys sit unused.
+    const providers: Array<() => Promise<string | undefined>> = [];
+    if (anthropicKey) providers.push(() => generateWithClaude([{ type: "text", text: fullPrompt }], anthropicKey));
+    if (geminiKey) providers.push(() => generateWithGemini([{ text: fullPrompt }], geminiKey));
+    if (openaiKey) providers.push(() => generateWithOpenAI(fullPrompt, openaiKey));
+
+    let summary: string | undefined;
+    let lastError: unknown;
+    for (const provider of providers) {
+      try {
+        summary = await provider();
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (summary === undefined && lastError) throw lastError;
 
     return NextResponse.json({
       summary: summary || "Could not produce a summary.",
       messageCount: data.length,
-      truncated: data.length >= MAX_MESSAGES,
+      truncated: data.length >= MAX_MESSAGES || transcriptTruncated,
     });
   } catch (error: unknown) {
     console.error("ERROR_SUMMARIZE:", error);
