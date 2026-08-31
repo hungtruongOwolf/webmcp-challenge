@@ -56,8 +56,10 @@ messenger-clone/
         |--- get-messages.ts
         |--- get-session.ts
         |--- get-users.ts
+    |-- auth/
+        |--- callback/
+        |--- passkey/
     |-- api/
-        |--- auth/[...nextauth]
         |--- conversations/[conversationId]
         |--- messages/
         |--- pusher/
@@ -74,10 +76,9 @@ messenger-clone/
         |--- empty-state.tsx
         |--- loading-modal.tsx
     |-- config/
-        |--- authOptions.tsx
         |--- site.ts
     |-- context/
-        |--- auth-context.ts
+        |--- current-user-context.tsx
         |--- toaster-context.ts
     |-- conversations/
         |--- [conversationId]/

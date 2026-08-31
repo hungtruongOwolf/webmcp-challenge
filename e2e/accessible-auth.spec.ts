@@ -9,16 +9,22 @@ type CapturedTool = {
   ) => Promise<string> | string;
 };
 
-type WebMCPTestSurface = {
-  tools: CapturedTool[];
-  abortCount: number;
+type CapturedRegistration = CapturedTool & {
+  registrationId: number;
 };
 
-declare global {
-  interface Window {
-    __webmcpTest: WebMCPTestSurface;
-  }
-}
+type RegistrationEvent = {
+  order: number;
+  type: "register" | "abort";
+  registrationId: number;
+  name: string;
+};
+
+type WebMCPTestSurface = {
+  tools: CapturedRegistration[];
+  abortCount: number;
+  events: RegistrationEvent[];
+};
 
 const email = process.env.E2E_USER_EMAIL;
 const password = process.env.E2E_USER_PASSWORD;
@@ -31,7 +37,13 @@ if (!email || !password) {
 
 const installWebMCPTestSurface = async (page: Page) => {
   await page.addInitScript(() => {
-    const surface: WebMCPTestSurface = { tools: [], abortCount: 0 };
+    const surface: WebMCPTestSurface = {
+      tools: [],
+      abortCount: 0,
+      events: [],
+    };
+    let nextRegistrationId = 0;
+    let nextEventOrder = 0;
     Object.defineProperty(window, "__webmcpTest", { value: surface });
     Object.defineProperty(document, "modelContext", {
       configurable: true,
@@ -40,12 +52,29 @@ const installWebMCPTestSurface = async (page: Page) => {
           tool: CapturedTool,
           options?: { signal?: AbortSignal }
         ) {
-          surface.tools.push(tool);
+          const registration: CapturedRegistration = {
+            ...tool,
+            registrationId: ++nextRegistrationId,
+          };
+          surface.tools.push(registration);
+          surface.events.push({
+            order: ++nextEventOrder,
+            type: "register",
+            registrationId: registration.registrationId,
+            name: registration.name,
+          });
           options?.signal?.addEventListener(
             "abort",
             () => {
+              surface.events.push({
+                order: ++nextEventOrder,
+                type: "abort",
+                registrationId: registration.registrationId,
+                name: registration.name,
+              });
               surface.tools = surface.tools.filter(
-                (candidate) => candidate !== tool
+                ({ registrationId }) =>
+                  registrationId !== registration.registrationId
               );
               surface.abortCount += 1;
             },
@@ -59,10 +88,18 @@ const installWebMCPTestSurface = async (page: Page) => {
 
 const connectionStatus = async (page: Page) =>
   page.evaluate(async () => {
-    const tool = window.__webmcpTest.tools.find(
+    const surface = (
+      window as unknown as Window & { __webmcpTest: WebMCPTestSurface }
+    ).__webmcpTest;
+    const tools = surface.tools.filter(
       (candidate) => candidate.name === "get_connection_status"
     );
-    if (!tool) throw new Error("get_connection_status is not registered.");
+    if (tools.length !== 1) {
+      throw new Error(
+        `Expected exactly one get_connection_status registration, found ${tools.length}.`
+      );
+    }
+    const [tool] = tools;
     const output = await tool.execute(
       {},
       { signal: new AbortController().signal }
@@ -161,9 +198,20 @@ test("logout aborts the authenticated registration before restoring the public s
     authenticated: true,
     state: "CONNECTED",
   });
-  const abortCountBeforeLogout = await page.evaluate(
-    () => window.__webmcpTest.abortCount
-  );
+  const authenticatedRegistrationId = await page.evaluate(() => {
+    const surface = (
+      window as unknown as Window & { __webmcpTest: WebMCPTestSurface }
+    ).__webmcpTest;
+    const registrations = surface.tools.filter(
+      ({ name }) => name === "get_connection_status"
+    );
+    if (registrations.length !== 1) {
+      throw new Error(
+        `Expected one authenticated status registration, found ${registrations.length}.`
+      );
+    }
+    return registrations[0].registrationId;
+  });
 
   await page.getByRole("link", { name: "Logout" }).click();
   await expect(page).toHaveURL(/\/$/);
@@ -174,8 +222,49 @@ test("logout aborts the authenticated registration before restoring the public s
     nextAction: "sign_in_on_page",
   });
   await expect
-    .poll(() => page.evaluate(() => window.__webmcpTest.abortCount))
-    .toBeGreaterThan(abortCountBeforeLogout);
+    .poll(() =>
+      page.evaluate((oldRegistrationId) => {
+        const surface = (
+          window as unknown as Window & { __webmcpTest: WebMCPTestSurface }
+        ).__webmcpTest;
+        const activeStatusTools = surface.tools.filter(
+          ({ name }) => name === "get_connection_status"
+        );
+        const oldAbortEvents = surface.events.filter(
+          (event) =>
+            event.type === "abort" &&
+            event.registrationId === oldRegistrationId
+        );
+        const replacement = activeStatusTools[0];
+        const replacementRegister = surface.events.find(
+          (event) =>
+            event.type === "register" &&
+            event.registrationId === replacement?.registrationId
+        );
+
+        return {
+          authenticatedRegistrationAbsent: !surface.tools.some(
+            ({ registrationId }) => registrationId === oldRegistrationId
+          ),
+          authenticatedRegistrationAbortCount: oldAbortEvents.length,
+          exactlyOneActiveStatusTool: activeStatusTools.length === 1,
+          replacementHasNewId:
+            replacement !== undefined &&
+            replacement.registrationId !== oldRegistrationId,
+          abortPrecedesReplacement:
+            oldAbortEvents.length === 1 &&
+            replacementRegister !== undefined &&
+            oldAbortEvents[0].order < replacementRegister.order,
+        };
+      }, authenticatedRegistrationId)
+    )
+    .toEqual({
+      authenticatedRegistrationAbsent: true,
+      authenticatedRegistrationAbortCount: 1,
+      exactlyOneActiveStatusTool: true,
+      replacementHasNewId: true,
+      abortPrecedesReplacement: true,
+    });
 });
 
 test("Messenger remains operable after sign-in without the browser WebMCP API", async ({
