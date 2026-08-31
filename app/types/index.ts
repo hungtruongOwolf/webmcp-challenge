@@ -9,10 +9,14 @@ export type User = Database["public"]["Tables"]["profiles"]["Row"];
 export type Conversation = Database["public"]["Tables"]["conversations"]["Row"];
 export type Message = Database["public"]["Tables"]["messages"]["Row"];
 export type Draft = Database["public"]["Tables"]["drafts"]["Row"];
+export type MessageReaction = Database["public"]["Tables"]["message_reactions"]["Row"];
+
+export const REACTION_EMOJI = ["👍", "❤️", "😆", "😮", "😢", "😡"] as const;
 
 export type FullMessageType = Message & {
   sender: User;
   seen: User[];
+  reactions: (MessageReaction & { user: User })[];
 };
 
 export type FullConversationType = Conversation & {

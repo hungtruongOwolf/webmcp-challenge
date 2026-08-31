@@ -229,3 +229,18 @@ body,
     display: none !important;
   }
 }
+.gm-msg-row .gm-react-trigger {
+  opacity: 0;
+  transition: opacity 120ms var(--ease), background 120ms var(--ease);
+}
+.gm-msg-row:hover .gm-react-trigger,
+.gm-msg-row .gm-react-trigger.is-open,
+.gm-msg-row .gm-react-trigger:focus-visible {
+  opacity: 1;
+}
+.gm-react-trigger:hover {
+  background: var(--hover);
+}
+.gm-react-pill:hover {
+  background: var(--hover);
+}

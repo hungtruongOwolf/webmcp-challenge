@@ -8,7 +8,9 @@ import type { FullMessageType } from "@/app/types";
 import { useCurrentUser } from "@/app/context/current-user-context";
 import { useUiSettings } from "@/app/context/ui-settings-context";
 import { avatarColors, initialsFromName } from "@/app/libs/avatar-color";
+import { createClient } from "@/app/libs/supabase/client";
 import Avatar from "@/app/components/avatar";
+import MessageReactions from "./message-reactions";
 
 function formatBytes(bytes?: number | null) {
   if (!bytes) return "";
@@ -39,6 +41,30 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
   useEffect(() => {
     bottomRef?.current?.scrollIntoView();
   }, [messages.length]);
+
+  const handleReact = (message: FullMessageType, emoji: string) => {
+    if (!currentUser) return;
+
+    const supabase = createClient();
+    const mine = message.reactions.find((r) => r.user.id === currentUser.id);
+
+    if (mine?.emoji === emoji) {
+      supabase
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", message.id)
+        .eq("user_id", currentUser.id)
+        .then(() => {});
+    } else {
+      supabase
+        .from("message_reactions")
+        .upsert(
+          { message_id: message.id, user_id: currentUser.id, emoji },
+          { onConflict: "message_id,user_id" }
+        )
+        .then(() => {});
+    }
+  };
 
   const dayGroups = useMemo(() => {
     const days: { label: string; groups: FullMessageType[][] }[] = [];
@@ -143,7 +169,11 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                           : "16px 16px 16px 16px";
 
                       return (
-                        <div key={message.id} style={{ width: "auto", maxWidth: "78%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" }}>
+                        <div
+                          key={message.id}
+                          className="gm-msg-row"
+                          style={{ width: "auto", maxWidth: "78%", display: "flex", flexDirection: "column", gap: 3, alignItems: isOwn ? "flex-end" : "flex-start" }}
+                        >
                           {message.image ? (
                             <button
                               type="button"
@@ -215,6 +245,12 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                               {message.body}
                             </div>
                           )}
+                          <MessageReactions
+                            message={message}
+                            currentUserId={currentUser?.id}
+                            isOwn={isOwn}
+                            onReact={(emoji) => handleReact(message, emoji)}
+                          />
                         </div>
                       );
                     })}

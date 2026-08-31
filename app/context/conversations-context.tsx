@@ -18,7 +18,8 @@ import useConversation from "@/app/hooks/use-conversation";
 
 const CONVERSATION_SELECT = `id, name, is_group, created_at, last_message_at,
   members:conversation_members ( profile:profiles (*) ),
-  messages ( *, sender:profiles!messages_sender_id_fkey (*), seen:message_seen ( profile:profiles!message_seen_user_id_fkey (*) ) )`;
+  messages ( *, sender:profiles!messages_sender_id_fkey (*), seen:message_seen ( profile:profiles!message_seen_user_id_fkey (*) ),
+    reactions:message_reactions ( *, user:profiles!message_reactions_user_id_fkey (*) ) )`;
 
 type ConversationsContextValue = {
   conversations: FullConversationType[];
@@ -51,7 +52,11 @@ export function ConversationsProvider({
       users: (data.members ?? []).map((m: any) => m.profile),
       messages: (data.messages ?? [])
         .sort((a: any, b: any) => a.created_at.localeCompare(b.created_at))
-        .map((m: any) => ({ ...m, seen: (m.seen ?? []).map((s: any) => s.profile) })),
+        .map((m: any) => ({
+          ...m,
+          seen: (m.seen ?? []).map((s: any) => s.profile),
+          reactions: m.reactions ?? [],
+        })),
     } as unknown as FullConversationType;
 
     setConversations((current) => {

@@ -24,6 +24,7 @@ describe("createWebmcpTools", () => {
       "read_link",
       "sign_out",
       "setup_passkey",
+      "react_to_message",
     ]);
     expect(onEvent).not.toHaveBeenCalled();
   });

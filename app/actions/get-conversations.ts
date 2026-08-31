@@ -24,7 +24,8 @@ const getConversations = async () => {
       .select(
         `id, name, is_group, created_at, last_message_at,
          members:conversation_members ( profile:profiles (*) ),
-         messages ( *, sender:profiles!messages_sender_id_fkey (*), seen:message_seen ( profile:profiles!message_seen_user_id_fkey (*) ) )`
+         messages ( *, sender:profiles!messages_sender_id_fkey (*), seen:message_seen ( profile:profiles!message_seen_user_id_fkey (*) ),
+           reactions:message_reactions ( *, user:profiles!message_reactions_user_id_fkey (*) ) )`
       )
       .order("last_message_at", { ascending: false });
 
@@ -38,6 +39,7 @@ const getConversations = async () => {
         .map((message: any) => ({
           ...message,
           seen: (message.seen ?? []).map((s: any) => s.profile),
+          reactions: message.reactions ?? [],
         })),
     })) as unknown as FullConversationType[];
   } catch {

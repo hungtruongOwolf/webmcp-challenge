@@ -55,7 +55,7 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
             const sender = findUser(record.sender_id);
             if (!sender) return current;
 
-            return [...current, { ...record, sender, seen: [] } as FullMessageType];
+            return [...current, { ...record, sender, seen: [], reactions: [] } as FullMessageType];
           });
 
           if (payload.record.sender_id) {
@@ -72,6 +72,28 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
               if (m.seen.some((u) => u.id === user_id)) return m;
 
               return { ...m, seen: [...m.seen, seer] };
+            })
+          );
+        } else if (table === "message_reactions") {
+          const record = payload.record ?? payload.old_record;
+          if (!record) return;
+
+          const { message_id, user_id } = record;
+          const reactor = findUser(user_id);
+          if (!reactor) return;
+
+          setMessages((current) =>
+            current.map((m) => {
+              if (m.id !== message_id) return m;
+
+              const withoutReactor = m.reactions.filter((r) => r.user.id !== user_id);
+
+              if (!payload.record) return { ...m, reactions: withoutReactor };
+
+              return {
+                ...m,
+                reactions: [...withoutReactor, { ...payload.record, user: reactor }],
+              };
             })
           );
         }
