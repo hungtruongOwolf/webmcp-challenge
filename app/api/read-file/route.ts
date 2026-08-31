@@ -4,6 +4,7 @@ import { createClient } from "@/app/libs/supabase/server";
 import { generateWithGemini } from "@/app/libs/gemini";
 import { generateWithClaude } from "@/app/libs/anthropic";
 import { fetchAsBase64 } from "@/app/libs/fetch-base64";
+import { safeFetch } from "@/app/libs/safe-fetch";
 
 const PDF_PROMPT =
   "Extract and summarize the key content of this document in plain language. Preserve important facts, names, and numbers.";
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
     const ext = extensionOf(fileName || fileUrl);
 
     if (TEXT_EXTENSIONS.has(ext)) {
-      const res = await fetch(fileUrl);
+      const res = await safeFetch(fileUrl);
       if (!res.ok) {
         return new NextResponse(`Could not fetch the file (status ${res.status}).`, { status: 502 });
       }

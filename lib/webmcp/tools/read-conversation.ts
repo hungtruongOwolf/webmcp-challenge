@@ -74,7 +74,7 @@ export const readConversation: ToolFactory = (ctx) => ({
           ? `[shared a file "${m.file_name}": ${m.file_url}]`
           : m.body || "";
 
-      return `${who} (${when}): ${wrapUntrusted(body)}`;
+      return wrapUntrusted(`${who} (${when}): ${body}`);
     });
 
     const oldest = data[data.length - 1]?.created_at;
