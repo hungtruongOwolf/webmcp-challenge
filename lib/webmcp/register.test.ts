@@ -23,6 +23,7 @@ describe("createWebmcpTools", () => {
       "read_file",
       "read_link",
       "sign_out",
+      "setup_passkey",
     ]);
     expect(onEvent).not.toHaveBeenCalled();
   });
