@@ -38,3 +38,6 @@ next-env.d.ts
 
 # supabase cli local state
 supabase/.temp/
+
+# isolated feature worktrees
+.worktrees/
