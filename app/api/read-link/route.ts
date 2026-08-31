@@ -1,55 +1,11 @@
 import { NextResponse } from "next/server";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
 
 import { createClient } from "@/app/libs/supabase/server";
+import { safeFetch } from "@/app/libs/safe-fetch";
 
 export const runtime = "nodejs";
 
-const MAX_REDIRECTS = 3;
 const MAX_BYTES = 1_000_000;
-const FETCH_TIMEOUT_MS = 10_000;
-
-/**
- * Blocks SSRF: a shared link could point at localhost, a cloud metadata
- * endpoint, or an internal service. Every hop (including redirects) is
- * DNS-resolved and checked before this server fetches it.
- */
-function isPrivateAddress(ip: string): boolean {
-  const kind = isIP(ip);
-
-  if (kind === 4) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 0) return true;
-    return false;
-  }
-
-  if (kind === 6) {
-    const norm = ip.toLowerCase();
-    if (norm === "::1") return true;
-    if (norm.startsWith("fe80:") || norm.startsWith("fc") || norm.startsWith("fd")) return true;
-    if (norm.startsWith("::ffff:")) return isPrivateAddress(norm.slice(7));
-    return false;
-  }
-
-  return true;
-}
-
-async function assertSafeUrl(url: URL): Promise<void> {
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`Unsupported protocol: ${url.protocol}`);
-  }
-
-  const { address } = await lookup(url.hostname);
-  if (isPrivateAddress(address)) {
-    throw new Error("That URL points at a private or internal address.");
-  }
-}
 
 /** Strips scripts/styles and tags, collapses whitespace -- no readability library needed for a plain-text summary. */
 function htmlToText(html: string): string {
@@ -95,38 +51,8 @@ export async function POST(req: Request) {
       return new NextResponse("url is required.", { status: 400 });
     }
 
-    let current: URL;
-    try {
-      current = new URL(rawUrl);
-    } catch {
-      return new NextResponse("That doesn't look like a valid URL.", { status: 400 });
-    }
+    const res = await safeFetch(rawUrl);
 
-    let res: Response | undefined;
-
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      await assertSafeUrl(current);
-
-      res = await fetch(current, {
-        redirect: "manual",
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; MessengerCloneBot/1.0)" },
-      });
-
-      if (res.status >= 300 && res.status < 400) {
-        const location = res.headers.get("location");
-        if (!location) break;
-        current = new URL(location, current);
-        continue;
-      }
-
-      break;
-    }
-
-    if (!res) return new NextResponse("Could not fetch that URL.", { status: 502 });
-    if (res.status >= 300 && res.status < 400) {
-      return new NextResponse("Too many redirects.", { status: 502 });
-    }
     if (!res.ok) {
       return new NextResponse(`Could not fetch that URL (status ${res.status}).`, { status: 502 });
     }

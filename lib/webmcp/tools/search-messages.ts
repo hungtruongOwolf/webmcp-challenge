@@ -55,9 +55,8 @@ export const searchMessages: ToolFactory = (ctx) => ({
     if (!data || data.length === 0) return textResult(`No messages match "${query}".`);
 
     const ordered = [...data].reverse();
-    const lines = ordered.map(
-      (m: any) =>
-        `${m.sender?.name || "Unknown"} (${relativeTime(m.created_at)}): ${wrapUntrusted(m.body || "")}`
+    const lines = ordered.map((m: any) =>
+      wrapUntrusted(`${m.sender?.name || "Unknown"} (${relativeTime(m.created_at)}): ${m.body || ""}`)
     );
 
     return textResult(lines.join("\n"));

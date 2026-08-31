@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult, relativeTime } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted, relativeTime } from "@/lib/webmcp/budget";
 
 const DEFAULT_LIMIT = 15;
 const MAX_LIMIT = 30;
@@ -62,6 +62,6 @@ export const listConversations: ToolFactory = (ctx) => ({
       return `${i + 1}. "${title}" (id: ${c.id}) -- ${preview} -- ${when}${unread}`;
     });
 
-    return textResult(lines.join("\n"));
+    return textResult(wrapUntrusted(lines.join("\n")));
   },
 });

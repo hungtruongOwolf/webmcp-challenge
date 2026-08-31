@@ -29,7 +29,12 @@ const Form = () => {
 
   // Seeds the input with whatever draft_message (the WebMCP tool) last saved
   // for this conversation -- otherwise a drafted reply never surfaces here.
+  // Clearing synchronously (not waiting for the fetch below) matters: without
+  // it, switching conversations fast and hitting Enter before the fetch
+  // resolves would send the PREVIOUS conversation's leftover draft text into
+  // the new one.
   useEffect(() => {
+    setDraft("");
     if (!conversationId || !currentUser) return;
 
     let cancelled = false;
@@ -50,16 +55,22 @@ const Form = () => {
     };
   }, [conversationId, currentUser]);
 
-  const onSubmit: SubmitHandler<FieldValues> = () => {
+  const onSubmit: SubmitHandler<FieldValues> = async () => {
     const message = draft.trim();
     if (!message) return;
 
     setDraft("");
     reset();
 
-    // The realtime subscription in Thread picks this up for everyone,
-    // including the sender -- no local state update needed here.
-    axios.post("/api/messages", { message, conversationId });
+    try {
+      // The realtime subscription in Thread picks this up for everyone,
+      // including the sender -- no local state update needed here.
+      await axios.post("/api/messages", { message, conversationId });
+    } catch {
+      toast.error("Couldn't send that message.");
+      setDraft(message);
+      return;
+    }
 
     if (currentUser) {
       createClient()
@@ -67,6 +78,7 @@ const Form = () => {
         .delete()
         .eq("conversation_id", conversationId)
         .eq("user_id", currentUser.id)
+        .eq("body", message)
         .then(() => {});
     }
   };

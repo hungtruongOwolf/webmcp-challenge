@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 
 export const describeImage: ToolFactory = () => ({
   name: "describe_image",
@@ -33,6 +33,6 @@ export const describeImage: ToolFactory = () => ({
     }
 
     const { description } = await res.json();
-    return textResult(description || "No description available.");
+    return textResult(wrapUntrusted(description || "No description available."));
   },
 });

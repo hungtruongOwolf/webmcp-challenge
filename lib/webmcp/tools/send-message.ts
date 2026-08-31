@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 
 export const sendMessage: ToolFactory = (ctx) => ({
   name: "send_message",
@@ -52,12 +52,16 @@ export const sendMessage: ToolFactory = (ctx) => ({
 
     if (!res.ok) return errorResult(`Could not send the message (status ${res.status}).`);
 
+    // Scoped to the exact draft body just sent, not just (conversation, user) --
+    // a draft_message call landing between the read above and this delete would
+    // otherwise get silently wiped instead of the message that was actually sent.
     await ctx.supabase
       .from("drafts")
       .delete()
       .eq("conversation_id", conversationId)
-      .eq("user_id", ctx.currentUser.id);
+      .eq("user_id", ctx.currentUser.id)
+      .eq("body", draft.body);
 
-    return textResult(`Sent to ${title}: "${draft.body}"`);
+    return textResult(wrapUntrusted(`Sent to ${title}: "${draft.body}"`));
   },
 });

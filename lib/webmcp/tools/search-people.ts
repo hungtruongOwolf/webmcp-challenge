@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 
 export const searchPeople: ToolFactory = (ctx) => ({
   name: "search_people",
@@ -31,6 +31,6 @@ export const searchPeople: ToolFactory = (ctx) => ({
     if (!data || data.length === 0) return textResult(`No one matches "${query}".`);
 
     const lines = data.map((p) => `${p.name} (id: ${p.id}, ${p.email})`);
-    return textResult(lines.join("\n"));
+    return textResult(wrapUntrusted(lines.join("\n")));
   },
 });
