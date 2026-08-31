@@ -11,6 +11,7 @@ import { createClient } from "@/app/libs/supabase/client";
 import { uploadAvatar } from "@/app/libs/supabase/upload";
 import Avatar from "@/app/components/avatar";
 import ConfirmDialog from "@/app/components/modals/confirm-dialog";
+import PasskeyManager from "@/app/components/passkey-manager";
 
 type ProfileModalProps = {
   isOpen: boolean;
@@ -25,12 +26,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setName(currentUser?.name || "");
       setImage(currentUser?.image || "");
+      setNameError(null);
     }
   }, [isOpen, currentUser]);
 
@@ -57,10 +61,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
     }
   };
 
-  const canSave = name.trim().length > 0 && !isSaving;
-
   const save = () => {
-    if (!canSave) return;
+    if (!name.trim()) {
+      setNameError("Display name is required.");
+      requestAnimationFrame(() => nameInputRef.current?.focus());
+      return;
+    }
 
     setIsSaving(true);
 
@@ -89,13 +95,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
         className="gm-glass3"
         style={{ position: "absolute", inset: 0, zIndex: 23, display: "grid", placeItems: "center", padding: 24, background: "var(--scrim)" }}
       >
-        <div
+        <form
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            save();
+          }}
           role="dialog"
           aria-modal="true"
           aria-label="Your profile"
           onClick={(e) => e.stopPropagation()}
           className="gm-glass2"
-          style={{ width: "100%", maxWidth: 400, padding: 22, borderRadius: 22, boxShadow: "var(--e2), inset 0 1px 0 var(--hi)", display: "flex", flexDirection: "column", gap: 16 }}
+          style={{ width: "100%", maxWidth: 400, maxHeight: "100%", overflowY: "auto", padding: 22, borderRadius: 22, boxShadow: "var(--e2), inset 0 1px 0 var(--hi)", display: "flex", flexDirection: "column", gap: 16 }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <h2 style={{ margin: 0, fontSize: 19, fontWeight: 600, letterSpacing: "-0.015em" }}>Your profile</h2>
@@ -122,30 +133,49 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
               >
                 {isUploadingAvatar ? "Uploading…" : "Change photo"}
               </button>
-              <span style={{ fontSize: 11.5, color: "var(--t3)" }}>JPG or PNG, up to 5 MB</span>
+              <span style={{ fontSize: 11.5, color: "var(--t3)" }}>
+                JPG, PNG, WebP, or GIF, up to 4 MB
+              </span>
             </div>
           </div>
 
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Display name</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="profile-name" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Display name</label>
             <input
+              ref={nameInputRef}
+              id="profile-name"
               type="text"
+              autoComplete="name"
+              required
+              aria-invalid={Boolean(nameError)}
+              aria-describedby={nameError ? "profile-name-error" : undefined}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setNameError(null);
+              }}
               style={{ height: 38, padding: "0 12px", border: "none", borderRadius: 10, background: "var(--bub-in)", color: "var(--t1)", fontSize: 14, outline: "none", boxShadow: "inset 0 0 0 0.5px var(--hair)" }}
             />
-          </label>
+            {nameError && (
+              <span id="profile-name-error" role="alert" style={{ fontSize: 12, color: "#c73e43" }}>
+                {nameError}
+              </span>
+            )}
+          </div>
 
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Email</span>
             <input
-              type="text"
+              type="email"
+              autoComplete="email"
               value={currentUser?.email || ""}
               readOnly
               style={{ height: 38, padding: "0 12px", border: "none", borderRadius: 10, background: "var(--hover)", color: "var(--t3)", fontSize: 14, outline: "none", boxShadow: "inset 0 0 0 0.5px var(--hair)" }}
             />
             <span style={{ fontSize: 11.5, color: "var(--t3)" }}>Your email comes from your sign-in and can&apos;t be changed here.</span>
           </label>
+
+          <PasskeyManager />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, paddingTop: 2 }}>
             <button
@@ -160,16 +190,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
                 Cancel
               </button>
               <button
-                type="button"
-                disabled={!canSave}
-                onClick={save}
-                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 10, background: canSave ? "var(--accent)" : "var(--hover)", color: canSave ? "#fff" : "var(--t3)", fontSize: 13, fontWeight: 600, cursor: canSave ? "pointer" : "default" }}
+                type="submit"
+                disabled={isSaving}
+                style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 10, background: isSaving ? "var(--hover)" : "var(--accent)", color: isSaving ? "var(--t3)" : "#fff", fontSize: 13, fontWeight: 600, cursor: isSaving ? "default" : "pointer" }}
               >
                 Save changes
               </button>
             </div>
           </div>
-        </div>
+        </form>
       </div>
 
       <ConfirmDialog

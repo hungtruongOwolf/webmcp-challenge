@@ -1,16 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { FieldValues, SubmitHandler } from "react-hook-form";
-import { useForm } from "react-hook-form";
-import { toast } from "react-hot-toast";
 import { HiOutlineFingerPrint } from "react-icons/hi2";
 
-import { createClient } from "@/app/libs/supabase/client";
 import { useCurrentUser } from "@/app/context/current-user-context";
+import { usePasskeyReadiness } from "@/app/hooks/use-passkey-readiness";
+import {
+  authFailureMessage,
+  createAuthGateway,
+  type AuthGateway,
+} from "@/app/libs/auth/auth-gateway";
+import { markFocusAfterAuth } from "@/app/libs/auth/focus-after-auth";
+import {
+  buildPasskeyEnrollmentPath,
+  sanitizeAuthReturnPath,
+} from "@/app/libs/auth/return-path";
+import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
+
+import { EmailAuthForm } from "./email-auth-form";
 
 type Variant = "LOGIN" | "REGISTER";
+
+type AuthFormProps = {
+  returnPath: string;
+  callbackError?: "auth_link_invalid";
+};
 
 const cardStyle: React.CSSProperties = {
   width: "100%",
@@ -23,7 +38,7 @@ const cardStyle: React.CSSProperties = {
 };
 
 const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
-  height: 44,
+  minHeight: 44,
   border: "none",
   borderRadius: 10,
   background: "var(--accent)",
@@ -38,285 +53,204 @@ const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
   gap: 8,
 });
 
-const fieldLabelStyle: React.CSSProperties = {
-  fontSize: 12.5,
-  fontWeight: 600,
-  color: "var(--t2)",
-};
-
-const fieldInputStyle: React.CSSProperties = {
-  height: 42,
-  padding: "0 12px",
-  border: "none",
-  borderRadius: 10,
-  background: "var(--bub-in)",
-  color: "var(--t1)",
-  fontSize: 14,
-  outline: "none",
-  boxShadow: "inset 0 0 0 0.5px var(--hair)",
-};
-
-const AuthForm = () => {
+const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const router = useRouter();
   const currentUser = useCurrentUser();
-  const [supabase] = useState(() => createClient());
-
+  const readiness = usePasskeyReadiness();
+  const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
   const [variant, setVariant] = useState<Variant>("LOGIN");
-  const [isLoading, setIsLoading] = useState(false);
-  const [canUsePasskeys, setCanUsePasskeys] = useState(false);
-  // Set after email signup: the account now exists and is confirmed, which is
-  // exactly the state Supabase requires before a passkey can be enrolled.
-  const [offerEnrollment, setOfferEnrollment] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const submissionLockRef = useRef(false);
+  const gatewayRef = useRef<AuthGateway | null>(null);
+  const passkeyButtonRef = useRef<HTMLButtonElement>(null);
+  const callbackAlertRef = useRef<HTMLDivElement>(null);
+  const destination = sanitizeAuthReturnPath(returnPath);
 
-  useEffect(() => {
-    setCanUsePasskeys(
-      typeof window !== "undefined" && !!window.PublicKeyCredential
-    );
+  const getGateway = () => {
+    gatewayRef.current ??= createAuthGateway();
+    return gatewayRef.current;
+  };
+
+  const startSubmission = useCallback(() => {
+    if (submissionLockRef.current) return false;
+    submissionLockRef.current = true;
+    setIsPending(true);
+    return true;
+  }, []);
+
+  const endSubmission = useCallback(() => {
+    submissionLockRef.current = false;
+    setIsPending(false);
   }, []);
 
   useEffect(() => {
-    if (currentUser && !offerEnrollment) router.push("/conversations");
-  }, [currentUser, offerEnrollment, router]);
+    if (currentUser) router.replace(destination);
+  }, [currentUser, destination, router]);
 
-  const toggleVariant = useCallback(
-    () => setVariant((v) => (v === "LOGIN" ? "REGISTER" : "LOGIN")),
-    []
-  );
+  useEffect(() => {
+    if (
+      callbackError !== "auth_link_invalid" ||
+      readiness.status === "checking"
+    ) {
+      return;
+    }
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<FieldValues>({
-    defaultValues: { name: "", email: "", password: "" },
-  });
+    const frame = requestAnimationFrame(() => callbackAlertRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [callbackError, readiness.status]);
 
-  const enter = () => {
-    router.push("/conversations");
+  const toggleVariant = useCallback(() => {
+    if (submissionLockRef.current) return;
+    setOperationError(null);
+    setVariant((current) => (current === "LOGIN" ? "REGISTER" : "LOGIN"));
+  }, []);
+
+  const completeAuthentication = useCallback(() => {
+    markFocusAfterAuth();
+    router.replace(destination);
     router.refresh();
-  };
+  }, [destination, router]);
 
-  /** The everyday door: no email typed, the browser offers known credentials. */
+  const offerPasskeyEnrollment = useCallback(() => {
+    router.replace(buildPasskeyEnrollmentPath(destination));
+  }, [destination, router]);
+
   const signInWithPasskey = async () => {
-    setIsLoading(true);
+    if (!startSubmission()) return;
+    setOperationError(null);
+    beginAuthentication();
+    const result = await getGateway().signInWithPasskey();
+    endSubmission();
 
-    try {
-      const { error } = await supabase.auth.signInWithPasskey();
-      if (error) throw error;
+    if (result.ok) {
+      completeAuthentication();
+      return;
+    }
 
-      toast.success("Welcome back.");
-      enter();
-    } catch (error: any) {
-      // Dismissing the OS prompt is a choice, not a failure worth shouting about.
-      if (error?.name === "NotAllowedError" || error?.name === "AbortError") {
-        return;
-      }
-      toast.error("No passkey found for this device. Sign in below instead.");
-    } finally {
-      setIsLoading(false);
+    const message = authFailureMessage(result.code);
+    if (result.code === "PASSKEY_CANCELLED") {
+      returnToSignedOut(message);
+      requestAnimationFrame(() => passkeyButtonRef.current?.focus());
+    } else {
+      returnToSignedOut("");
+      setOperationError(message);
     }
   };
-
-  /** Bootstrap only: creates the confirmed account a passkey can attach to. */
-  const onSubmit: SubmitHandler<FieldValues> = async (data) => {
-    setIsLoading(true);
-
-    try {
-      if (variant === "REGISTER") {
-        const { error } = await supabase.auth.signUp({
-          email: data.email,
-          password: data.password,
-          options: { data: { name: data.name } },
-        });
-        if (error) throw error;
-
-        toast.success("Account created.");
-        if (canUsePasskeys) {
-          setOfferEnrollment(true);
-          return;
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: data.email,
-          password: data.password,
-        });
-        if (error) throw error;
-
-        toast.success("You are logged in.");
-      }
-
-      enter();
-    } catch (error: any) {
-      toast.error(error?.message ?? "Something went wrong.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const enrollPasskey = async () => {
-    setIsLoading(true);
-
-    try {
-      const { error } = await supabase.auth.registerPasskey();
-      if (error) throw error;
-
-      toast.success("Passkey saved. Next time, one tap.");
-    } catch (error: any) {
-      if (error?.name !== "NotAllowedError" && error?.name !== "AbortError") {
-        toast.error(error?.message ?? "Could not save the passkey.");
-      }
-    } finally {
-      setIsLoading(false);
-      enter();
-    }
-  };
-
-  if (offerEnrollment) {
-    return (
-      <div className="gm-glass2" style={{ ...cardStyle, alignItems: "center", textAlign: "center" }}>
-        <span
-          aria-hidden
-          style={{
-            width: 60,
-            height: 60,
-            borderRadius: 999,
-            background: "var(--sel)",
-            color: "var(--accent-t)",
-            display: "grid",
-            placeItems: "center",
-          }}
-        >
-          <HiOutlineFingerPrint size={30} />
-        </span>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "var(--t1)" }}>
-            Add a passkey?
-          </h2>
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.5, color: "var(--t2)" }}>
-            Sign in with your fingerprint, face, or device PIN instead of typing a password.
-          </p>
-        </div>
-
-        <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
-          <button
-            type="button"
-            onClick={enrollPasskey}
-            disabled={isLoading}
-            style={primaryButtonStyle(isLoading)}
-          >
-            Set up passkey
-          </button>
-          <button
-            type="button"
-            onClick={enter}
-            disabled={isLoading}
-            style={{ background: "none", border: "none", padding: 4, fontSize: 13, fontWeight: 500, color: "var(--t3)", cursor: "pointer" }}
-          >
-            Maybe later
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="gm-glass2" style={cardStyle}>
-      {canUsePasskeys && (
-        <>
-          <button
-            type="button"
-            onClick={signInWithPasskey}
-            disabled={isLoading}
-            style={primaryButtonStyle(isLoading)}
-          >
-            <HiOutlineFingerPrint size={19} aria-hidden />
-            Sign in with a passkey
-          </button>
+      <h2
+        style={{
+          margin: 0,
+          fontSize: 17,
+          fontWeight: 600,
+          color: "var(--t1)",
+        }}
+      >
+        Sign in options
+      </h2>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden />
-            <span style={{ flex: "none", fontSize: 12, color: "var(--t3)" }}>or use your email</span>
-            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden />
+      {readiness.status === "checking" ? (
+        <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
+          {readiness.message}
+        </p>
+      ) : (
+        <>
+          {callbackError === "auth_link_invalid" && !operationError && (
+            <div
+              ref={callbackAlertRef}
+              role="alert"
+              tabIndex={-1}
+              style={{
+                borderRadius: 10,
+                padding: 12,
+                background: "var(--sel)",
+                color: "var(--t1)",
+                fontSize: 13,
+              }}
+            >
+              <p style={{ margin: "0 0 6px" }}>
+                That sign-in link is invalid or expired.
+              </p>
+              <a href="#email" style={{ color: "var(--accent-t)" }}>
+                Email me a new link
+              </a>
+            </div>
+          )}
+
+          {readiness.status === "ready" ? (
+            <>
+              <button
+                ref={passkeyButtonRef}
+                type="button"
+                onClick={signInWithPasskey}
+                disabled={isPending}
+                aria-describedby="passkey-method-description"
+                style={primaryButtonStyle(isPending)}
+              >
+                <HiOutlineFingerPrint size={19} aria-hidden />
+                Sign in with a passkey
+              </button>
+              <p
+                id="passkey-method-description"
+                style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--t2)" }}
+              >
+                Your operating system may offer a fingerprint, face, device
+                PIN, password manager, or hardware security key.
+              </p>
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
+              {readiness.message}
+            </p>
+          )}
+
+          <EmailAuthForm
+            variant={variant}
+            returnPath={destination}
+            gateway={getGateway()}
+            onAuthenticated={completeAuthentication}
+            onPasskeyEnrollment={offerPasskeyEnrollment}
+            isPending={isPending}
+            onSubmissionStart={startSubmission}
+            onSubmissionEnd={endSubmission}
+            operationError={operationError}
+            onOperationError={setOperationError}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 6,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ color: "var(--t3)" }}>
+              {variant === "LOGIN"
+                ? "New to Messenger?"
+                : "Already have an account?"}
+            </span>
+            <button
+              type="button"
+              onClick={toggleVariant}
+              disabled={isPending}
+              style={{
+                border: "none",
+                padding: 0,
+                background: "none",
+                color: "var(--accent-t)",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: isPending ? "default" : "pointer",
+              }}
+            >
+              {variant === "LOGIN" ? "Create an account" : "Log in"}
+            </button>
           </div>
         </>
       )}
-
-      <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {variant === "REGISTER" && (
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={fieldLabelStyle}>Name</span>
-            <input
-              type="text"
-              id="name"
-              placeholder="John Doe"
-              autoComplete="name"
-              disabled={isLoading}
-              {...register("name", { required: true })}
-              style={{
-                ...fieldInputStyle,
-                boxShadow: errors.name
-                  ? "inset 0 0 0 1.5px #e5484d"
-                  : fieldInputStyle.boxShadow,
-              }}
-            />
-          </label>
-        )}
-
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={fieldLabelStyle}>Email Address</span>
-          <input
-            type="email"
-            id="email"
-            placeholder="johndoe@email.com"
-            autoComplete="email"
-            disabled={isLoading}
-            {...register("email", { required: true })}
-            style={{
-              ...fieldInputStyle,
-              boxShadow: errors.email
-                ? "inset 0 0 0 1.5px #e5484d"
-                : fieldInputStyle.boxShadow,
-            }}
-          />
-        </label>
-
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={fieldLabelStyle}>Password</span>
-          <input
-            type="password"
-            id="password"
-            placeholder="••••••••••"
-            autoComplete="current-password"
-            disabled={isLoading}
-            {...register("password", { required: true })}
-            style={{
-              ...fieldInputStyle,
-              boxShadow: errors.password
-                ? "inset 0 0 0 1.5px #e5484d"
-                : fieldInputStyle.boxShadow,
-            }}
-          />
-        </label>
-
-        <button type="submit" disabled={isLoading} style={{ ...primaryButtonStyle(isLoading), marginTop: 2 }}>
-          {variant === "LOGIN" ? "Sign in" : "Create account"}
-        </button>
-      </form>
-
-      <div style={{ display: "flex", justifyContent: "center", gap: 6, fontSize: 13 }}>
-        <span style={{ color: "var(--t3)" }}>
-          {variant === "LOGIN" ? "New to Messenger?" : "Already have an account?"}
-        </span>
-
-        <button
-          type="button"
-          onClick={toggleVariant}
-          style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 600, color: "var(--accent-t)", cursor: "pointer" }}
-        >
-          {variant === "LOGIN" ? "Create an account" : "Log in"}
-        </button>
-      </div>
     </div>
   );
 };

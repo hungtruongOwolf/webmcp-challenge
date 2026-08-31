@@ -1,8 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { sanitizeAuthReturnPath } from "@/app/libs/auth/return-path";
 
 /** Routes that require a signed-in user. Mirrors the old middleware matcher. */
-const PROTECTED = ["/users", "/conversations"];
+const PROTECTED = ["/users", "/conversations", "/auth/passkey"];
 
 /**
  * Refreshes the auth cookie on every request and guards protected routes.
@@ -42,6 +43,8 @@ export const updateSession = async (request: NextRequest) => {
   if (!user && needsAuth) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
+    url.search = "";
+    url.searchParams.set("next", sanitizeAuthReturnPath(pathname));
     return NextResponse.redirect(url);
   }
 

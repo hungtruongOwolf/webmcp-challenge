@@ -7,6 +7,9 @@ import ToasterContext from "@/app/context/toaster-context";
 import { CurrentUserProvider } from "@/app/context/current-user-context";
 import { createClient } from "@/app/libs/supabase/server";
 import { siteConfig } from "@/app/config/site";
+import { WebMCPConnectionProvider } from "@/app/webmcp/connection-provider";
+import { ConnectionStatusIndicator } from "@/app/webmcp/connection-status-indicator";
+import { RouteFocusAfterAuth } from "@/app/components/accessibility/focus-after-auth";
 
 import "./globals.css";
 
@@ -28,13 +31,16 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="en">
       <body className={inter.className}>
         <CurrentUserProvider initialUser={user}>
-          {/* react hot toast */}
-          <aside>
-            <ToasterContext />
-          </aside>
-
-          <ActiveStatus />
-          {children}
+          <WebMCPConnectionProvider>
+            <RouteFocusAfterAuth />
+            {/* react hot toast */}
+            <aside>
+              <ToasterContext />
+            </aside>
+            <ConnectionStatusIndicator />
+            <ActiveStatus />
+            {children}
+          </WebMCPConnectionProvider>
         </CurrentUserProvider>
       </body>
     </html>

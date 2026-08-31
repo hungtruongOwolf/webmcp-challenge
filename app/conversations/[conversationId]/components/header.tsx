@@ -60,8 +60,11 @@ const Header: React.FC<HeaderProps> = ({ conversation, onOpenMedia, onOpenInfo }
         <Avatar user={otherUser} size={38} />
       )}
       <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-        <span
+        <h1
+          data-page-title
+          tabIndex={-1}
           style={{
+            margin: 0,
             fontSize: 16.5,
             fontWeight: 600,
             letterSpacing: "-0.014em",
@@ -71,7 +74,7 @@ const Header: React.FC<HeaderProps> = ({ conversation, onOpenMedia, onOpenInfo }
           }}
         >
           {conversation.name || otherUser?.name}
-        </span>
+        </h1>
         <span style={{ fontSize: 12, fontWeight: 500, color: isActive ? "var(--lagoon)" : "var(--t3)" }}>
           {statusText}
         </span>

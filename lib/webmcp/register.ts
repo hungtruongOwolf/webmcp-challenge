@@ -31,30 +31,23 @@ const TOOL_FACTORIES = [
 ];
 
 const summarizeInput = (input: Record<string, unknown>) => {
-  const json = JSON.stringify(input ?? {});
-  return json.length > 120 ? `${json.slice(0, 120)}…` : json;
+  const keys = Object.keys(input ?? {}).sort();
+  return keys.length === 0 ? "no input" : `fields: ${keys.join(", ")}`;
 };
 
 const summarizeResult = (result: ModelContextToolResult) => {
-  const text = result.content.map((c) => c.text).join(" ");
-  return text.length > 140 ? `${text.slice(0, 140)}…` : text;
+  return result.isError ? "tool returned an error" : "completed";
 };
 
 /**
- * Registers every WebMCP tool this app exposes. No-ops (returns false)
- * outside a WebMCP-capable browser agent so the app behaves identically
- * for everyone else -- WebMCP is additive, never load-bearing for the UI.
+ * Builds the authenticated Messenger catalog. Registration and teardown are
+ * owned by WebMCPConnectionProvider so every tool shares one session scope.
  */
-export async function registerWebmcpTools(
+export function createWebmcpTools(
   ctx: ToolContext,
-  onEvent: (event: Omit<ToolActivityEvent, "id" | "at">) => void,
-  signal: AbortSignal
-): Promise<boolean> {
-  if (typeof document === "undefined" || typeof document.modelContext?.registerTool !== "function") {
-    return false;
-  }
-
-  for (const factory of TOOL_FACTORIES) {
+  onEvent: (event: Omit<ToolActivityEvent, "id" | "at">) => void
+): ModelContextTool[] {
+  return TOOL_FACTORIES.map((factory) => {
     const tool = factory(ctx);
 
     const execute: ModelContextTool["execute"] = async (input, agent) => {
@@ -75,7 +68,7 @@ export async function registerWebmcpTools(
         onEvent({
           kind: "call",
           toolName: tool.name,
-          summary: `${summarizeInput(input)} → ${message}`,
+          summary: `${summarizeInput(input)} → tool threw an error`,
           status: "error",
         });
 
@@ -83,11 +76,6 @@ export async function registerWebmcpTools(
       }
     };
 
-    // eslint-disable-next-line no-await-in-loop
-    await document.modelContext.registerTool({ ...tool, execute }, { signal });
-
-    onEvent({ kind: "registered", toolName: tool.name, summary: tool.description });
-  }
-
-  return true;
+    return { ...tool, execute };
+  });
 }

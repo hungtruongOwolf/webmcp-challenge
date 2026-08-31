@@ -56,8 +56,10 @@ messenger-clone/
         |--- get-messages.ts
         |--- get-session.ts
         |--- get-users.ts
+    |-- auth/
+        |--- callback/
+        |--- passkey/
     |-- api/
-        |--- auth/[...nextauth]
         |--- conversations/[conversationId]
         |--- messages/
         |--- pusher/
@@ -74,10 +76,9 @@ messenger-clone/
         |--- empty-state.tsx
         |--- loading-modal.tsx
     |-- config/
-        |--- authOptions.tsx
         |--- site.ts
     |-- context/
-        |--- auth-context.ts
+        |--- current-user-context.tsx
         |--- toaster-context.ts
     |-- conversations/
         |--- [conversationId]/
@@ -130,88 +131,36 @@ messenger-clone/
 
 1. Make sure **Git** and **NodeJS** is installed.
 2. Clone this repository to your local computer.
-3. Create `.env` file in root directory.
-4. Contents of `.env`:
+3. Copy `.env.example` to `.env` and provide the database, Cloudinary, Pusher, and Supabase project values. `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` identify the Supabase project; the anon key is public and relies on row-level security.
+4. Set `NEXT_PUBLIC_APP_ORIGIN` to the exact site origin and `NEXT_PUBLIC_PASSKEY_RP_ID` to that origin's hostname. Local development may use `http://localhost:3000` and `localhost`.
+5. Run `npm install --legacy-peer-deps`, then `npm run verify:passkey-config`.
+6. Start the application with `npm run dev`.
+
+### Authentication and WebMCP security
+
+Messenger supports passkeys, clickable email sign-in links, and passwords through Supabase. Users authenticate directly on the Messenger page so credentials and operating-system passkey prompts stay in the site's trusted UI; credentials, session objects, and tokens are never tool inputs or results.
+
+When the browser exposes `document.modelContext`, Messenger automatically registers the public connection-status tool while signed out and replaces it with tools bound to the current server-validated session after sign-in. Registrations receive an abort signal and are removed on logout, account change, or session expiry. Without WebMCP, the ordinary Conversations interface remains usable.
+
+ChatGPT desktop's built-in browser has its own browser session. Signing in to Messenger in a separate browser does not sign in that embedded browser; authenticate on the Messenger page opened inside ChatGPT desktop. Browser tool discovery is not an authentication bypass.
+
+### Testing
 
 ```bash
-# .env
-
-# mongodb url
-DATABASE_URL="mongodb://127.0.0.1/messenger-clone"
-
-# client url for next auth
-NEXTAUTH_URL=http://localhost:3000
-
-# next auth secret (random strings)
-NEXTAUTH_SECRET=<your-nextauth-secret>
-
-# github auth credentials
-GITHUB_CLIENT_ID=<your-github-client-id>
-GITHUB_CLIENT_SECRET=<your-github-client-secret>
-
-# google auth credentials
-GOOGLE_CLIENT_ID=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=<your-google-client-secret>
-
-# next cloudinary credentials
-NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=xxxxxxxxx
-NEXT_PUBLIC_CLOUDINARY_CLOUD_PRESET=xxxxxxxxxx
-
-# pusher credentials
-PUSHER_APP_ID=00000000
-PUSHER_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxx
-NEXT_PUBLIC_PUSHER_APP_KEY=xxxxxxxxxxxxxxxxxxxxx
-NEXT_PUBLIC_PUSHER_APP_CLUSTER=xxx
-
+npm test
+npm run test:e2e
+npm run verify:passkey-config
 ```
 
-5. **MongoDB URL**
+Browser tests require `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` for a disposable Supabase test account. Keep those server-side process variables out of source control and do not expose them through `NEXT_PUBLIC_` variables. The manual browser, passkey, keyboard, and assistive-technology release matrix is in `docs/testing/accessible-auth-manual.md`.
 
-   - Install and run MongoDB locally or use a cloud-based MongoDB service.
-   - Replace the placeholder in `DATABASE_URL` with your actual MongoDB connection string.
-
-6. **NextAuth Configuration**
-
-   - Set up NextAuth by following the official documentation: [NextAuth.js Documentation](https://next-auth.js.org/getting-started/introduction)
-   - Set `NEXTAUTH_URL` to the base URL of your application.
-   - Generate a random string for `NEXTAUTH_SECRET`.
-
-7. **GitHub Auth**
-
-   - Create a GitHub OAuth App by following the guide: [Creating an OAuth App](https://docs.github.com/en/developers/apps/creating-an-oauth-app)
-   - Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` with the obtained credentials.
-
-8. **Google Auth**
-
-   - Create a project on the Google Cloud Console: [Google Cloud Console](https://console.cloud.google.com/)
-   - Follow the steps to set up OAuth consent screen and credentials: [Create credentials](https://developers.google.com/identity/sign-in/web/sign-in)
-   - Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` with the obtained credentials.
-
-9. **Cloudinary**
-
-   - Sign up for a Cloudinary account: [Cloudinary Sign-up](https://cloudinary.com/users/register/free)
-   - Retrieve your cloud name from the dashboard.
-   - Set `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` and `NEXT_PUBLIC_CLOUDINARY_CLOUD_PRESET` with the obtained credentials.
-
-10. **Pusher**
-
-    - Sign up for a Pusher account: [Pusher Sign-up](https://dashboard.pusher.com/accounts/sign_up)
-    - Create a new app and obtain the app ID, app secret, app key, and cluster.
-    - Set `PUSHER_APP_ID`, `PUSHER_APP_SECRET`, `NEXT_PUBLIC_PUSHER_APP_KEY`, and `NEXT_PUBLIC_PUSHER_APP_CLUSTER` with the obtained credentials.
-
-11. Open terminal in root directory. Run `npm install` or `yarn install`.
-
-12. Now app is fully configured 👍 and you can start using this app using `npm run dev` or `yarn dev`.
+Production builds require a non-local HTTPS `NEXT_PUBLIC_APP_ORIGIN` whose hostname exactly equals `NEXT_PUBLIC_PASSKEY_RP_ID`. CI rejects missing values and localhost. Before release, also confirm Supabase email confirmation is enabled and complete the real-host passkey and email-link checks in the manual matrix.
 
 ### :books: Additional Resources
 
 - **Next.js Documentation:** Explore the power of Next.js for building your web applications.
 
   - [Next.js Documentation](https://nextjs.org/docs/)
-
-- **NextAuth.js Documentation:** Learn more about authentication in Next.js using NextAuth.js.
-
-  - [NextAuth.js Documentation](https://next-auth.js.org/)
 
 - **Tailwind CSS Documentation:** Dive into the documentation for Tailwind CSS, a utility-first CSS framework used in the project.
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import type { User } from "@/app/types";
@@ -18,6 +18,8 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({ users, isOpen, onClose 
   const [name, setName] = useState("");
   const [picked, setPicked] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
@@ -32,13 +34,21 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({ users, isOpen, onClose 
   const close = () => {
     setName("");
     setPicked([]);
+    setShowValidation(false);
     onClose();
   };
 
-  const canCreate = name.trim().length > 0 && picked.length >= 2 && !isLoading;
+  const hasRequiredValues = name.trim().length > 0 && picked.length >= 2;
+  const canCreate = hasRequiredValues && !isLoading;
 
   const createGroup = () => {
-    if (!canCreate) return;
+    if (!canCreate) {
+      setShowValidation(true);
+      if (!name.trim()) {
+        requestAnimationFrame(() => nameInputRef.current?.focus());
+      }
+      return;
+    }
 
     setIsLoading(true);
 
@@ -60,7 +70,12 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({ users, isOpen, onClose 
       className="gm-glass3"
       style={{ position: "absolute", inset: 0, zIndex: 23, display: "grid", placeItems: "center", padding: 24, background: "var(--scrim)" }}
     >
-      <div
+      <form
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          createGroup();
+        }}
         role="dialog"
         aria-modal="true"
         aria-label="New group"
@@ -75,19 +90,38 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({ users, isOpen, onClose 
               <HiXMark size={16} />
             </button>
           </div>
-          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Group name</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="group-name" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Group name</label>
             <input
+              ref={nameInputRef}
+              id="group-name"
               type="text"
+              autoComplete="off"
+              required
+              aria-invalid={showValidation && !name.trim()}
+              aria-describedby={showValidation && !name.trim() ? "group-name-error" : undefined}
               placeholder="Thursday dinner"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setShowValidation(false);
+              }}
               style={{ height: 38, padding: "0 12px", border: "none", borderRadius: 10, background: "var(--bub-in)", color: "var(--t1)", fontSize: 14, outline: "none", boxShadow: "inset 0 0 0 0.5px var(--hair)" }}
             />
-          </label>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Add people</span>
+            {showValidation && !name.trim() && (
+              <span id="group-name-error" role="alert" style={{ fontSize: 12, color: "#c73e43" }}>
+                Name is required.
+              </span>
+            )}
+          </div>
+          <span id="group-members-label" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--t2)" }}>Add people</span>
+          {showValidation && picked.length < 2 && (
+            <span id="group-members-error" role="alert" style={{ fontSize: 12, color: "#c73e43" }}>
+              Select at least two people.
+            </span>
+          )}
         </div>
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div role="group" aria-labelledby="group-members-label" aria-describedby={showValidation && picked.length < 2 ? "group-members-error" : undefined} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
           {users.map((p) => {
             const isPicked = picked.some((u) => u.id === p.id);
 
@@ -122,16 +156,15 @@ const GroupChatModal: React.FC<GroupChatModalProps> = ({ users, isOpen, onClose 
               Cancel
             </button>
             <button
-              type="button"
-              disabled={!canCreate}
-              onClick={createGroup}
-              style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 10, background: canCreate ? "var(--accent)" : "var(--hover)", color: canCreate ? "#fff" : "var(--t3)", fontSize: 13, fontWeight: 600, cursor: canCreate ? "pointer" : "default" }}
+              type="submit"
+              disabled={isLoading}
+              style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 10, background: isLoading ? "var(--hover)" : "var(--accent)", color: isLoading ? "var(--t3)" : "#fff", fontSize: 13, fontWeight: 600, cursor: isLoading ? "default" : "pointer" }}
             >
               Create group
             </button>
           </div>
         </div>
-      </div>
+      </form>
     </div>
   );
 };

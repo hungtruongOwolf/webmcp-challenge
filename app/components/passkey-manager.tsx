@@ -1,85 +1,81 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { toast } from "react-hot-toast";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HiOutlineFingerPrint, HiOutlineTrash } from "react-icons/hi2";
 
 import Button from "@/app/components/button";
-import { createClient } from "@/app/libs/supabase/client";
+import { usePasskeyReadiness } from "@/app/hooks/use-passkey-readiness";
+import {
+  authFailureMessage,
+  createAuthGateway,
+  type AuthGateway,
+  type PasskeyRecord,
+} from "@/app/libs/auth/auth-gateway";
+import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
 
-type Passkey = {
-  id: string;
-  friendly_name?: string;
-  created_at: string;
-  last_used_at?: string;
+type PasskeyManagerProps = {
+  gateway?: AuthGateway;
 };
 
 /**
- * List, rename and revoke the passkeys on this account.
- *
- * Enrolment is per-device: a passkey saved on a laptop does not appear on a
- * phone, so the list is expected to grow one row per device the user signs
- * in from.
+ * Lists and revokes passkeys on this account, even when this browser cannot
+ * enroll another one.
  */
-const PasskeyManager = () => {
-  const [supabase] = useState(() => createClient());
-  const [passkeys, setPasskeys] = useState<Passkey[]>([]);
+const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
+  const gatewayRef = useRef<AuthGateway | null>(gateway ?? null);
+  const { announce } = useWebMCPConnection();
+  const readiness = usePasskeyReadiness();
+  const [passkeys, setPasskeys] = useState<PasskeyRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
-  const [supported, setSupported] = useState(true);
+
+  const getGateway = useCallback(() => {
+    gatewayRef.current ??= createAuthGateway();
+    return gatewayRef.current;
+  }, []);
 
   const refresh = useCallback(async () => {
-    try {
-      const { data, error } = await supabase.auth.passkey.list();
-      if (error) throw error;
-      setPasskeys(data ?? []);
-    } catch {
+    const result = await getGateway().listPasskeys();
+    if (result.ok) {
+      setPasskeys(result.value);
+    } else {
       setPasskeys([]);
-    } finally {
-      setIsLoading(false);
+      announce(authFailureMessage(result.code));
     }
-  }, [supabase]);
+    setIsLoading(false);
+  }, [announce, getGateway]);
 
   useEffect(() => {
-    setSupported(typeof window !== "undefined" && !!window.PublicKeyCredential);
-    refresh();
+    if (readiness.status !== "checking") announce(readiness.message);
+  }, [announce, readiness.message, readiness.status]);
+
+  useEffect(() => {
+    void refresh();
   }, [refresh]);
 
   const add = async () => {
     setIsBusy(true);
-
-    try {
-      const { error } = await supabase.auth.registerPasskey();
-      if (error) throw error;
-
-      toast.success("Passkey added.");
+    const result = await getGateway().registerPasskey();
+    if (result.ok) {
+      announce("Passkey added.");
       await refresh();
-    } catch (error: any) {
-      if (error?.name !== "NotAllowedError" && error?.name !== "AbortError") {
-        toast.error(error?.message ?? "Could not add the passkey.");
-      }
-    } finally {
-      setIsBusy(false);
+    } else {
+      announce(authFailureMessage(result.code));
     }
+    setIsBusy(false);
   };
 
   const remove = async (id: string) => {
     setIsBusy(true);
-
-    try {
-      const { error } = await supabase.auth.passkey.delete({ passkeyId: id });
-      if (error) throw error;
-
-      toast.success("Passkey removed.");
+    const result = await getGateway().deletePasskey(id);
+    if (result.ok) {
+      announce("Passkey removed.");
       await refresh();
-    } catch (error: any) {
-      toast.error(error?.message ?? "Could not remove the passkey.");
-    } finally {
-      setIsBusy(false);
+    } else {
+      announce(authFailureMessage(result.code));
     }
+    setIsBusy(false);
   };
-
-  if (!supported) return null;
 
   return (
     <div className="border-t border-gray-900/10 pt-8">
@@ -105,10 +101,10 @@ const PasskeyManager = () => {
             key={passkey.id}
             className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2"
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex min-w-0 items-center gap-3">
               <HiOutlineFingerPrint
                 size={20}
-                className="text-sky-500 shrink-0"
+                className="shrink-0 text-sky-500"
                 aria-hidden
               />
               <div className="min-w-0">
@@ -133,8 +129,16 @@ const PasskeyManager = () => {
           </div>
         ))}
 
+        {readiness.status !== "ready" && (
+          <p className="text-sm text-gray-600">{readiness.message}</p>
+        )}
         <div>
-          <Button type="button" onClick={add} disabled={isBusy} secondary>
+          <Button
+            type="button"
+            onClick={add}
+            disabled={isBusy || readiness.status !== "ready"}
+            secondary
+          >
             Add a passkey
           </Button>
         </div>

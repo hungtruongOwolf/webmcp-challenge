@@ -85,9 +85,14 @@ function ShellInner({
             onOpenNewGroup={() => setOverlay("newGroup")}
           />
 
-          <div className="gm-detail-panel" style={{ flex: 1, minWidth: 0, display: "flex" }}>
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="gm-detail-panel"
+            style={{ flex: 1, minWidth: 0, display: "flex" }}
+          >
             {children}
-          </div>
+          </main>
         </div>
 
         <DirectoryModal

@@ -33,24 +33,6 @@ function ShellInner({ children }: PropsWithChildren) {
     >
       <div aria-hidden className="gm-bg" />
 
-      <button
-        type="button"
-        aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-        onClick={toggleTheme}
-        className="gm-icon-btn"
-        style={{
-          position: "absolute",
-          top: 20,
-          right: 20,
-          zIndex: 2,
-          width: 40,
-          height: 40,
-          boxShadow: "inset 0 0 0 0.5px var(--hair)",
-        }}
-      >
-        {theme === "dark" ? <HiSun size={18} /> : <HiMoon size={18} />}
-      </button>
-
       <div
         style={{
           position: "relative",
@@ -88,6 +70,24 @@ function ShellInner({ children }: PropsWithChildren) {
 
         {children}
       </div>
+
+      <button
+        type="button"
+        aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+        onClick={toggleTheme}
+        className="gm-icon-btn"
+        style={{
+          position: "absolute",
+          top: 20,
+          right: 20,
+          zIndex: 2,
+          width: 40,
+          height: 40,
+          boxShadow: "inset 0 0 0 0.5px var(--hair)",
+        }}
+      >
+        {theme === "dark" ? <HiSun size={18} /> : <HiMoon size={18} />}
+      </button>
     </div>
   );
 }
