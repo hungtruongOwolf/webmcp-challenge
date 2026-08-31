@@ -9,9 +9,11 @@ import Input from "@/app/components/inputs/input";
 import SettingsModal from "@/app/components/modals/settings-modal";
 import GroupChatModal from "@/app/conversations/components/group-chat-modal";
 import type { User } from "@/app/types";
+import { WebMCPConnectionProvider } from "@/app/webmcp/connection-provider";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => "/",
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 vi.mock("@/app/context/current-user-context", () => ({
@@ -91,12 +93,18 @@ it("renders native and ARIA password validation semantics", async () => {
 
 it("reports custom errors when the production authentication form is submitted blank", async () => {
   const user = userEvent.setup();
-  render(<AuthForm />);
+  render(
+    <WebMCPConnectionProvider modelContext={null} currentUserId={null}>
+      <AuthForm returnPath="/conversations" />
+    </WebMCPConnectionProvider>
+  );
 
-  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  await user.click(
+    await screen.findByRole("button", { name: "Sign in with password" })
+  );
 
-  expect(screen.getByText("Email Address is required.")).toBeInTheDocument();
-  expect(screen.getByLabelText("Email Address")).toHaveAttribute(
+  expect(screen.getByText("Email is required.")).toBeInTheDocument();
+  expect(screen.getByLabelText("Email")).toHaveAttribute(
     "aria-invalid",
     "true"
   );

@@ -51,7 +51,9 @@ const Header: React.FC<HeaderProps> = ({ conversation }) => {
           )}
 
           <div className="flex flex-col">
-            <h3>{conversation.name || otherUser.name}</h3>
+            <h1 data-page-title tabIndex={-1}>
+              {conversation.name || otherUser.name}
+            </h1>
 
             <div className="text-sm font-light text-neutral-500">
               {statusText}
