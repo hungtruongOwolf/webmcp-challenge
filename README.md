@@ -28,7 +28,6 @@ browser) instead of needing to see or parse a screen.
 - [Getting started](#getting-started)
 - [Testing](#testing)
 - [Folder structure](#folder-structure)
-- [Credits](#credits)
 
 </details>
 
@@ -207,13 +206,6 @@ messenger-clone/
   docs/superpowers/          original accessible-auth design/plan docs
   e2e/, tests/               Playwright spec, Vitest setup
 ```
-
-## Credits
-
-Scaffolded from an open-source Next.js Messenger clone tutorial
-([CodeWithAntonio](https://codewithantonio.com/) / sanidhyy). The original
-MIT license notice is preserved in `LICENSE`. The data layer, auth, realtime
-model, and the entire WebMCP agent tool layer were rebuilt for this project.
 
 <br />
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
