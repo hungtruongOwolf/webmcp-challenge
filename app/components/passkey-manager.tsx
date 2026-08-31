@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HiOutlineFingerPrint, HiOutlineTrash } from "react-icons/hi2";
 
 import Button from "@/app/components/button";
@@ -22,15 +22,20 @@ type PasskeyManagerProps = {
  * enroll another one.
  */
 const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
-  const [authGateway] = useState(() => gateway ?? createAuthGateway());
+  const gatewayRef = useRef<AuthGateway | null>(gateway ?? null);
   const { announce } = useWebMCPConnection();
   const readiness = usePasskeyReadiness();
   const [passkeys, setPasskeys] = useState<PasskeyRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
 
+  const getGateway = useCallback(() => {
+    gatewayRef.current ??= createAuthGateway();
+    return gatewayRef.current;
+  }, []);
+
   const refresh = useCallback(async () => {
-    const result = await authGateway.listPasskeys();
+    const result = await getGateway().listPasskeys();
     if (result.ok) {
       setPasskeys(result.value);
     } else {
@@ -38,7 +43,11 @@ const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
       announce(authFailureMessage(result.code));
     }
     setIsLoading(false);
-  }, [announce, authGateway]);
+  }, [announce, getGateway]);
+
+  useEffect(() => {
+    if (readiness.status !== "checking") announce(readiness.message);
+  }, [announce, readiness.message, readiness.status]);
 
   useEffect(() => {
     void refresh();
@@ -46,7 +55,7 @@ const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
 
   const add = async () => {
     setIsBusy(true);
-    const result = await authGateway.registerPasskey();
+    const result = await getGateway().registerPasskey();
     if (result.ok) {
       announce("Passkey added.");
       await refresh();
@@ -58,7 +67,7 @@ const PasskeyManager = ({ gateway }: PasskeyManagerProps) => {
 
   const remove = async (id: string) => {
     setIsBusy(true);
-    const result = await authGateway.deletePasskey(id);
+    const result = await getGateway().deletePasskey(id);
     if (result.ok) {
       announce("Passkey removed.");
       await refresh();
