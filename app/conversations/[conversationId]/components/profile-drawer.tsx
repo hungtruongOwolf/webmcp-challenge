@@ -50,6 +50,7 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
   }, [tab]);
 
   const media = useMemo(() => messages.filter((m) => !!m.image), [messages]);
+  const isLastMember = conversation.users.length <= 1;
 
   const onDelete = () => {
     setDeleting(true);
@@ -300,7 +301,7 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
                   }}
                 >
                   <HiOutlineTrash size={16} />
-                  Delete chat
+                  {isLastMember ? "Delete chat" : "Leave chat"}
                 </button>
               </div>
             </div>
@@ -310,9 +311,13 @@ const ProfileDrawer: React.FC<ProfileDrawerProps> = ({
 
       <ConfirmDialog
         isOpen={confirmDelete}
-        title="Delete chat"
-        body="This removes the conversation for everyone in it. This can't be undone."
-        confirmLabel="Delete"
+        title={isLastMember ? "Delete chat" : "Leave chat"}
+        body={
+          isLastMember
+            ? "You're the only one left in this chat, so this permanently deletes it. This can't be undone."
+            : "This removes the conversation from your list. Everyone else keeps their copy."
+        }
+        confirmLabel={isLastMember ? "Delete" : "Leave"}
         isLoading={deleting}
         onConfirm={onDelete}
         onCancel={() => setConfirmDelete(false)}

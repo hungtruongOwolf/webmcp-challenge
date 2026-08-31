@@ -275,6 +275,7 @@ export type Database = {
         Returns: string
       }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
+      leave_conversation: { Args: { p_conversation_id: string }; Returns: boolean }
       begin_conversation_deletion: { Args: { p_conversation_id: string }; Returns: boolean }
       finish_conversation_deletion: { Args: { p_conversation_id: string }; Returns: boolean }
       can_upload_conversation_image: { Args: { p_conversation_id: string }; Returns: boolean }

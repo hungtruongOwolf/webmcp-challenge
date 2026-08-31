@@ -37,13 +37,16 @@ async function collectAllPaths(
 }
 
 /**
- * Deletion is a three-step, user-scoped operation (see
- * 20260830120700_conversation_image_cleanup.sql): mark the conversation as
- * deleting (blocks new messages/uploads), remove every Storage object with
- * the caller's own authenticated client (RLS enforces they're cleaning up a
- * conversation they actually started deleting), then finalize -- which
- * itself re-checks both buckets are empty before dropping the row. No
- * service-role credential is needed anywhere in this path.
+ * "Delete chat" only removes the caller's own membership -- for a group
+ * that just means leaving, everyone else keeps the conversation untouched.
+ * Storage/messages are only destroyed when leave_conversation() reports the
+ * caller was the LAST member, since at that point nobody else can see the
+ * conversation anyway. That destruction is the same three-step, user-scoped
+ * operation as before (see 20260830120700_conversation_image_cleanup.sql):
+ * leave_conversation() marks it as deleting, this route removes every
+ * Storage object with the caller's own authenticated client, then
+ * finish_conversation_deletion() re-checks both buckets are empty before
+ * dropping the row. No service-role credential is needed anywhere.
  */
 export async function DELETE(
   _req: Request,
@@ -61,10 +64,14 @@ export async function DELETE(
 
     if (!user) return new NextResponse("Unauthorized.", { status: 401 });
 
-    const { error: beginError } = await supabase.rpc("begin_conversation_deletion", {
+    const { data: wasLastMember, error: leaveError } = await supabase.rpc("leave_conversation", {
       p_conversation_id: conversationId,
     });
-    if (beginError) return new NextResponse(beginError.message, { status: 400 });
+    if (leaveError) return new NextResponse(leaveError.message, { status: 400 });
+
+    if (!wasLastMember) {
+      return NextResponse.json({ id: conversationId, fullyDeleted: false });
+    }
 
     for (const bucket of DELETE_BUCKETS) {
       const paths = await collectAllPaths(supabase, bucket, conversationId);
@@ -79,7 +86,7 @@ export async function DELETE(
     });
     if (finishError) return new NextResponse(finishError.message, { status: 400 });
 
-    return NextResponse.json({ id: conversationId });
+    return NextResponse.json({ id: conversationId, fullyDeleted: true });
   } catch (error: unknown) {
     console.error("ERROR_CONVERSATION_DELETE:", error);
     return new NextResponse("Internal Server Error.", { status: 500 });
