@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,6 +28,17 @@ const ConnectionProbe = () => {
       </button>
     </>
   );
+};
+
+const CatalogInstaller = ({ tools }: { tools: WebMCPTool[] }) => {
+  const { replaceAuthenticatedTools } = useWebMCPConnection();
+
+  useEffect(() => {
+    replaceAuthenticatedTools(tools);
+    return () => replaceAuthenticatedTools([]);
+  }, [replaceAuthenticatedTools, tools]);
+
+  return null;
 };
 
 const createFakeModelContext = () => {
@@ -59,19 +70,26 @@ const createFakeModelContext = () => {
   });
 };
 
+const toolResult = (value: unknown): ModelContextToolResult => ({
+  content: [{ type: "text", text: JSON.stringify(value) }],
+});
+
+const parseToolResult = (result: ModelContextToolResult) =>
+  JSON.parse(result.content[0].text);
+
 const createStubTool = (name: string): WebMCPTool => ({
   name,
   description: `${name} test tool`,
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
   annotations: { readOnlyHint: true, untrustedContentHint: false },
-  execute: async () => JSON.stringify({ ok: true }),
+  execute: async () => toolResult({ ok: true }),
 });
 
 const lifecycleTestRegistry: WebMCPToolRegistry = {
   getPublicTools: ({ getSnapshot }) => [
     {
       ...createStubTool("get_connection_status"),
-      execute: async () => JSON.stringify(getSnapshot()),
+      execute: async () => toolResult(getSnapshot()),
     },
   ],
   getAuthenticatedTools: () => [
@@ -207,6 +225,59 @@ describe("WebMCPConnectionProvider", () => {
     expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
+  it("registers one status tool plus the complete authenticated Messenger catalog", async () => {
+    const modelContext = createFakeModelContext();
+    const catalogNames = [
+      "list_conversations",
+      "read_conversation",
+      "search_messages",
+      "search_people",
+      "get_my_profile",
+      "open_conversation",
+      "create_group",
+      "draft_message",
+      "send_message",
+      "delete_conversation",
+      "describe_image",
+      "read_file",
+      "read_link",
+    ];
+    const catalogTools = [
+      createStubTool("get_connection_status"),
+      ...catalogNames.map(createStubTool),
+    ];
+    const renderTree = (currentUserId: string | null) => (
+      <WebMCPConnectionProvider
+        modelContext={modelContext}
+        currentUserId={currentUserId}
+      >
+        <CatalogInstaller tools={catalogTools} />
+        <ConnectionProbe />
+      </WebMCPConnectionProvider>
+    );
+    const { rerender } = render(renderTree("user-a"));
+
+    await waitFor(() =>
+      expect(modelContext.activeNames()).toEqual([
+        "get_connection_status",
+        ...catalogNames,
+      ])
+    );
+    const settledRegistrationCount = modelContext.registrationCount();
+
+    rerender(renderTree("user-a"));
+    await act(async () => Promise.resolve());
+    expect(modelContext.registrationCount()).toBe(settledRegistrationCount);
+
+    rerender(renderTree(null));
+    await waitFor(() =>
+      expect(modelContext.activeNames()).toEqual(["get_connection_status"])
+    );
+    expect(modelContext.abortedRegistrationCount()).toBe(
+      settledRegistrationCount
+    );
+  });
+
   it("aborts the old user before registering the new user and ignores stale completion", async () => {
     const StateProbe = () => {
       const { state } = useWebMCPConnection();
@@ -285,7 +356,7 @@ describe("WebMCPConnectionProvider", () => {
       getAuthenticatedTools: ({ getSnapshot }) => [
         {
           ...createStubTool("get_connection_status"),
-          execute: async () => JSON.stringify(getSnapshot()),
+          execute: async () => toolResult(getSnapshot()),
         },
       ],
     };
@@ -311,10 +382,8 @@ describe("WebMCPConnectionProvider", () => {
       </WebMCPConnectionProvider>
     );
 
-    const result = await statusTool?.execute(undefined, {
-      signal: new AbortController().signal,
-    });
-    expect(JSON.parse(result ?? "{}")).toMatchObject({
+    const result = await statusTool?.execute({});
+    expect(parseToolResult(result!)).toMatchObject({
       route: "/users",
       state: "CONNECTED",
       authenticated: true,
@@ -460,11 +529,8 @@ describe("WebMCPConnectionProvider", () => {
     expect(modelContext.registrationCount()).toBe(3);
 
     const [publicStatus] = modelContext.activeTools();
-    const payload = await publicStatus.tool.execute(
-      {},
-      { signal: new AbortController().signal }
-    );
-    expect(JSON.parse(payload)).toEqual({
+    const payload = await publicStatus.tool.execute({});
+    expect(parseToolResult(payload)).toEqual({
       authenticated: false,
       state: "SESSION_EXPIRED",
       route: "/conversations",

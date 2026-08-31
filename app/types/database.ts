@@ -71,6 +71,42 @@ export type Database = {
         }
         Relationships: []
       }
+      drafts: {
+        Row: {
+          body: string
+          conversation_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          conversation_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          conversation_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drafts_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drafts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_seen: {
         Row: {
           message_id: string
@@ -109,6 +145,9 @@ export type Database = {
           body: string | null
           conversation_id: string
           created_at: string
+          file_name: string | null
+          file_size: number | null
+          file_url: string | null
           id: string
           image: string | null
           sender_id: string
@@ -117,6 +156,9 @@ export type Database = {
           body?: string | null
           conversation_id: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
           id?: string
           image?: string | null
           sender_id: string
@@ -125,6 +167,9 @@ export type Database = {
           body?: string | null
           conversation_id?: string
           created_at?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string | null
           id?: string
           image?: string | null
           sender_id?: string
@@ -182,7 +227,22 @@ export type Database = {
         Args: { p_is_group?: boolean; p_member_ids: string[]; p_name?: string }
         Returns: string
       }
+      create_message: {
+        Args: {
+          p_body?: string
+          p_conversation_id: string
+          p_file_name?: string
+          p_file_size?: number
+          p_file_url?: string
+          p_image?: string
+        }
+        Returns: string
+      }
       is_conversation_member: { Args: { conv_id: string }; Returns: boolean }
+      begin_conversation_deletion: { Args: { p_conversation_id: string }; Returns: boolean }
+      finish_conversation_deletion: { Args: { p_conversation_id: string }; Returns: boolean }
+      can_upload_conversation_image: { Args: { p_conversation_id: string }; Returns: boolean }
+      can_cleanup_conversation_images: { Args: { p_conversation_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

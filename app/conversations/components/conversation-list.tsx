@@ -1,124 +1,149 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useCurrentUser } from "@/app/context/current-user-context";
-import { useRouter } from "next/navigation";
-import clsx from "clsx";
-import { find } from "lodash";
-import type { User } from "@/app/types";
-import { MdOutlineGroupAdd } from "react-icons/md";
+import { useMemo, useState } from "react";
+import { HiUserPlus, HiPlus, HiMagnifyingGlass } from "react-icons/hi2";
 
-import type { FullConversationType } from "@/app/types";
+import type { User } from "@/app/types";
 import useConversation from "@/app/hooks/use-conversation";
+import { useConversationsList } from "@/app/context/conversations-context";
 import ConversationBox from "@/app/conversations/components/conversation-box";
-import GroupChatModal from "@/app/conversations/components/group-chat-modal";
-import { pusherClient } from "@/app/libs/pusher";
 
 type ConversationListProps = {
-  initialConversations: FullConversationType[];
   users: User[];
+  showList: boolean;
+  onOpenDirectory: () => void;
+  onOpenNewGroup: () => void;
 };
 
 const ConversationList: React.FC<ConversationListProps> = ({
-  initialConversations,
-  users,
+  showList,
+  onOpenDirectory,
+  onOpenNewGroup,
 }) => {
-  const [conversations, setConversation] = useState(initialConversations);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { conversations } = useConversationsList();
+  const [query, setQuery] = useState("");
 
-  const currentUser = useCurrentUser();
-  const router = useRouter();
   const { conversationId, isOpen } = useConversation();
 
-  const pusherKey = useMemo(() => {
-    return currentUser?.email;
-  }, [currentUser?.email]);
+  const filtered = useMemo(() => {
+    const sorted = [...conversations].sort(
+      (a, b) =>
+        new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+    );
 
-  useEffect(() => {
-    if (!pusherKey) return;
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted;
 
-    pusherClient.subscribe(pusherKey);
+    return sorted.filter((c) => {
+      const name = (c.name || "").toLowerCase();
+      const memberNames = c.users.map((u) => (u.name || "").toLowerCase());
 
-    const newHandler = (conversation: FullConversationType) => {
-      setConversation((current) => {
-        if (find(current, { id: conversation.id })) return current;
+      return name.includes(q) || memberNames.some((n) => n.includes(q));
+    });
+  }, [conversations, query]);
 
-        return [conversation, ...current];
-      });
-    };
-
-    const updateHandler = (conversation: FullConversationType) => {
-      setConversation((current) =>
-        current.map((currentConversation) => {
-          if (currentConversation.id === conversation.id)
-            return {
-              ...currentConversation,
-              messages: conversation.messages,
-            };
-
-          return currentConversation;
-        })
-      );
-    };
-
-    const removeHandler = (conversation: FullConversationType) => {
-      setConversation((current) => {
-        return [
-          ...current.filter(
-            (currentConversation) => currentConversation.id !== conversation.id
-          ),
-        ];
-      });
-
-      if (conversationId === conversation.id) router.push("/conversations");
-    };
-
-    pusherClient.bind("conversation:new", newHandler);
-    pusherClient.bind("conversation:update", updateHandler);
-    pusherClient.bind("conversation:remove", removeHandler);
-
-    return () => {
-      pusherClient.unsubscribe(pusherKey);
-      pusherClient.unbind("conversation:new", newHandler);
-      pusherClient.unbind("conversation:update", newHandler);
-      pusherClient.unbind("conversation:remove", removeHandler);
-    };
-  }, [pusherKey, conversationId, router]);
+  if (!showList) return null;
 
   return (
-    <>
-      <GroupChatModal
-        users={users}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
-      <aside
-        className={clsx(
-          "fixed inset-y-0 pb-20 lg:pb-0 lg:left-20 lg:w-80 lg:block overflow-y-auto border-r border-gray-200",
-          isOpen ? "hidden" : "block w-full left-0"
-        )}
-      >
-        <div className="px-5">
-          <div className="flex justify-between mb-4 pt-4">
-            <h3 className="text-2xl font-bold text-neutral-800">Messages</h3>
+    <div
+      className="gm-glass1 gm-list-panel"
+      style={{
+        flex: isOpen ? "0 0 320px" : "1 1 320px",
+        maxWidth: 380,
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: "inset -1px 0 0 var(--hair), inset 0 1px 0 var(--hi)",
+      }}
+    >
+      <div style={{ flex: "none", padding: "16px 16px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <h1 style={{ margin: 0, fontSize: 19, fontWeight: 600, letterSpacing: "-0.015em" }}>
+            Chats
+          </h1>
+          <div style={{ display: "flex", gap: 6 }}>
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="rounded-full p-2 bg-gray-100 text-gray-600 cursor-pointer hover:opacity-75 transition"
+              type="button"
+              aria-label="New group"
+              onClick={onOpenNewGroup}
+              className="gm-icon-btn"
+              style={{ width: 32, height: 32 }}
             >
-              <MdOutlineGroupAdd size={20} />
+              <HiUserPlus size={17} />
+            </button>
+            <button
+              type="button"
+              aria-label="New chat"
+              onClick={onOpenDirectory}
+              className="gm-icon-btn"
+              style={{ width: 32, height: 32 }}
+            >
+              <HiPlus size={17} />
             </button>
           </div>
-
-          {conversations.map((conversation) => (
-            <ConversationBox
-              key={conversation.id}
-              data={conversation}
-              selected={conversationId === conversation.id}
-            />
-          ))}
         </div>
-      </aside>
-    </>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            height: 36,
+            padding: "0 10px",
+            borderRadius: 10,
+            background: "var(--hover)",
+            boxShadow: "inset 0 0 0 0.5px var(--hair)",
+          }}
+        >
+          <HiMagnifyingGlass size={15} style={{ color: "var(--t3)", flex: "none" }} />
+          <input
+            type="text"
+            aria-label="Search chats"
+            placeholder="Search chats"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              border: "none",
+              background: "transparent",
+              fontSize: 13.5,
+              fontWeight: 500,
+              color: "var(--t1)",
+              outline: "none",
+            }}
+          />
+        </div>
+      </div>
+      <div
+        role="list"
+        aria-label="Conversations"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          padding: "0 8px 12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        {filtered.map((conversation) => (
+          <ConversationBox
+            key={conversation.id}
+            data={conversation}
+            selected={conversationId === conversation.id}
+          />
+        ))}
+        {filtered.length === 0 && (
+          <div style={{ padding: "28px 12px", textAlign: "center", display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Nothing found</span>
+            <span style={{ fontSize: 12.5, lineHeight: 1.5, color: "var(--t2)" }}>
+              Try another name, or open the directory to start a new chat.
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

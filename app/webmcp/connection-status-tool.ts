@@ -16,5 +16,7 @@ export const createConnectionStatusTool = (
     readOnlyHint: true,
     untrustedContentHint: false,
   },
-  execute: async () => JSON.stringify(getSnapshot()),
+  execute: async () => ({
+    content: [{ type: "text", text: JSON.stringify(getSnapshot()) }],
+  }),
 });

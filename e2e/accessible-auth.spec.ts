@@ -4,9 +4,9 @@ import { expect, test, type Page } from "@playwright/test";
 type CapturedTool = {
   name: string;
   execute: (
-    input: unknown,
-    context: { signal: AbortSignal }
-  ) => Promise<string> | string;
+    input: Record<string, unknown>,
+    agent?: ModelContextAgent
+  ) => Promise<ModelContextToolResult>;
 };
 
 type CapturedRegistration = CapturedTool & {
@@ -100,11 +100,8 @@ const connectionStatus = async (page: Page) =>
       );
     }
     const [tool] = tools;
-    const output = await tool.execute(
-      {},
-      { signal: new AbortController().signal }
-    );
-    return JSON.parse(output) as Record<string, unknown>;
+    const output = await tool.execute({});
+    return JSON.parse(output.content[0].text) as Record<string, unknown>;
   });
 
 const expectNoSeriousAxeViolations = async (page: Page) => {
@@ -225,7 +222,15 @@ test("logout aborts the authenticated registration before restoring the public s
     };
   });
 
-  await page.getByRole("link", { name: "Logout" }).click();
+  await page.getByRole("button", { name: "Your profile" }).click();
+  await page
+    .getByRole("dialog", { name: "Your profile" })
+    .getByRole("button", { name: "Log out" })
+    .click();
+  await page
+    .getByRole("alertdialog", { name: "Log out" })
+    .getByRole("button", { name: "Log out" })
+    .click();
   await expect(page).toHaveURL(/\/$/);
   await expect.poll(() => connectionStatus(page)).toEqual({
     authenticated: false,

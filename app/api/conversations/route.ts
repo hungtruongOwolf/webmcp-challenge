@@ -1,89 +1,70 @@
 import { NextResponse } from "next/server";
-import prisma from "@/app/libs/prismadb";
 
-import getCurrentUser from "@/app/actions/get-current-user";
-import { pusherServer } from "@/app/libs/pusher";
+import { createClient } from "@/app/libs/supabase/server";
+
+const toProfileDTO = (p: any) =>
+  p && {
+    id: p.id,
+    name: p.name,
+    email: p.email,
+    image: p.image,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+  };
 
 export async function POST(request: Request) {
   try {
-    const currentUser = await getCurrentUser();
-    const body = await request.json();
-    const { userId, isGroup, members, name } = body;
+    const supabase = await createClient();
 
-    if (!currentUser?.id || !currentUser?.email)
-      return new NextResponse("Unauthorized.", { status: 401 });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return new NextResponse("Unauthorized.", { status: 401 });
+
+    const { userId, isGroup, members, name } = await request.json();
 
     if (isGroup && (!members || members.length < 2 || !name))
       return new NextResponse("Invalid data.", { status: 400 });
 
-    if (isGroup) {
-      const newConversation = await prisma.conversation.create({
-        data: {
-          name,
-          isGroup,
-          users: {
-            connect: [
-              ...members.map((member: { value: string }) => ({
-                id: member.value,
-              })),
-              {
-                id: currentUser.id,
-              },
-            ],
-          },
-        },
-        include: {
-          users: true,
-        },
-      });
+    const memberIds = isGroup
+      ? members.map((m: { value: string }) => m.value)
+      : [userId];
 
-      newConversation.users.forEach((user) => {
-        if (user.email) {
-          pusherServer.trigger(user.email, "conversation:new", newConversation);
-        }
-      });
-
-      return NextResponse.json(newConversation);
-    }
-
-    const existingConversations = await prisma.conversation.findMany({
-      where: {
-        userIds: {
-          hasEvery: [currentUser.id, userId],
-        },
-      },
-    });
-
-    const singleConversation = existingConversations[0];
-
-    if (singleConversation) return NextResponse.json(singleConversation);
-
-    const newConversation = await prisma.conversation.create({
-      data: {
-        users: {
-          connect: [
-            {
-              id: currentUser.id,
-            },
-            {
-              id: userId,
-            },
-          ],
-        },
-      },
-      include: {
-        users: true,
-      },
-    });
-
-    newConversation.users.map((user) => {
-      if (user.email) {
-        pusherServer.trigger(user.email, "conversation:new", newConversation);
+    const { data: conversationId, error: rpcError } = await supabase.rpc(
+      "create_conversation",
+      {
+        p_member_ids: memberIds,
+        p_is_group: !!isGroup,
+        p_name: isGroup ? name : null,
       }
-    });
+    );
 
-    return NextResponse.json(newConversation);
+    if (rpcError) throw rpcError;
+
+    const { data, error } = await supabase
+      .from("conversations")
+      .select(
+        `id, name, is_group, created_at, last_message_at,
+         members:conversation_members ( profile:profiles (*) )`
+      )
+      .eq("id", conversationId)
+      .single();
+
+    if (error) throw error;
+
+    const dto = {
+      id: data.id,
+      name: data.name,
+      isGroup: data.is_group,
+      createdAt: data.created_at,
+      lastMessageAt: data.last_message_at,
+      users: (data.members ?? []).map((m: any) => toProfileDTO(m.profile)),
+    };
+
+    return NextResponse.json(dto);
   } catch (error: unknown) {
+    console.error("ERROR_CONVERSATIONS:", error);
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

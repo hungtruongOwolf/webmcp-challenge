@@ -168,14 +168,21 @@ export const EmailAuthForm = ({
         onOperationError(null);
         void passwordAction(event);
       }}
-      className="space-y-6"
+      style={{ display: "flex", flexDirection: "column", gap: 14 }}
     >
       {(operationError || Object.keys(errors).length > 0) && (
         <div
           ref={summaryRef}
           role="alert"
           tabIndex={-1}
-          className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+          className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+          style={{
+            borderRadius: 10,
+            padding: 12,
+            background: "var(--sel)",
+            color: "var(--t1)",
+            fontSize: 13,
+          }}
         >
           {operationError ?? "Check the highlighted fields and try again."}
         </div>
@@ -217,11 +224,11 @@ export const EmailAuthForm = ({
       <div
         role="separator"
         aria-label="or use a password"
-        className="flex items-center gap-3 text-sm text-gray-500"
+        style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--t3)" }}
       >
-        <span className="h-px flex-1 bg-gray-300" aria-hidden="true" />
+        <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
         <span aria-hidden="true">or use a password</span>
-        <span className="h-px flex-1 bg-gray-300" aria-hidden="true" />
+        <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
       </div>
 
       <Input<EmailAuthValues>
