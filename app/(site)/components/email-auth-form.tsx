@@ -26,6 +26,8 @@ export type EmailAuthFormProps = {
   isPending: boolean;
   onSubmissionStart: () => boolean;
   onSubmissionEnd: () => void;
+  operationError: string | null;
+  onOperationError: (message: string | null) => void;
 };
 
 export const EmailAuthForm = ({
@@ -37,10 +39,11 @@ export const EmailAuthForm = ({
   isPending,
   onSubmissionStart,
   onSubmissionEnd,
+  operationError,
+  onOperationError,
 }: EmailAuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
   const [focusSummaryRequested, setFocusSummaryRequested] = useState(false);
-  const [operationError, setOperationError] = useState<string | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const {
     register,
@@ -57,19 +60,24 @@ export const EmailAuthForm = ({
   };
 
   useEffect(() => {
-    if (!focusSummaryRequested || !summaryRef.current) return;
+    if (!operationError || !summaryRef.current) return;
+    summaryRef.current.focus();
+  }, [operationError]);
+
+  useEffect(() => {
+    if (!focusSummaryRequested || operationError || !summaryRef.current) return;
     summaryRef.current.focus();
     setFocusSummaryRequested(false);
   }, [errors, focusSummaryRequested, operationError]);
 
   const focusValidationSummary = () => {
-    setOperationError(null);
+    onOperationError(null);
     focusSummary();
   };
 
   const sendEmailLink = async (values: EmailAuthValues) => {
     if (!onSubmissionStart()) return;
-    setOperationError(null);
+    onOperationError(null);
     beginAuthentication();
     const result = await gateway.sendEmailLink({
       email: values.email,
@@ -81,9 +89,8 @@ export const EmailAuthForm = ({
 
     if (!result.ok) {
       const message = authFailureMessage(result.code);
-      returnToSignedOut(message);
-      setOperationError(message);
-      focusSummary();
+      returnToSignedOut("");
+      onOperationError(message);
       return;
     }
 
@@ -96,7 +103,6 @@ export const EmailAuthForm = ({
 
   const submitPassword = async (values: EmailAuthValues) => {
     if (!onSubmissionStart()) return;
-    setOperationError(null);
 
     if (!values.password) {
       onSubmissionEnd();
@@ -117,9 +123,8 @@ export const EmailAuthForm = ({
       onSubmissionEnd();
       if (!result.ok) {
         const message = authFailureMessage(result.code);
-        returnToSignedOut(message);
-        setOperationError(message);
-        focusSummary();
+        returnToSignedOut("");
+        onOperationError(message);
         return;
       }
       onAuthenticated();
@@ -135,9 +140,8 @@ export const EmailAuthForm = ({
     onSubmissionEnd();
     if (!result.ok) {
       const message = authFailureMessage(result.code);
-      returnToSignedOut(message);
-      setOperationError(message);
-      focusSummary();
+      returnToSignedOut("");
+      onOperationError(message);
       return;
     }
 
@@ -150,14 +154,20 @@ export const EmailAuthForm = ({
   };
 
   const emailLinkAction = () => {
+    onOperationError(null);
     clearErrors("password");
     void handleSubmit(sendEmailLink, focusValidationSummary)();
   };
 
+  const passwordAction = handleSubmit(submitPassword, focusValidationSummary);
+
   return (
     <form
       noValidate
-      onSubmit={handleSubmit(submitPassword, focusValidationSummary)}
+      onSubmit={(event) => {
+        onOperationError(null);
+        void passwordAction(event);
+      }}
       className="space-y-6"
     >
       {(operationError || Object.keys(errors).length > 0) && (

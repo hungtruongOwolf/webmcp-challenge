@@ -44,13 +44,15 @@ type RenderFormOptions = {
   onPasskeyEnrollment?: () => void;
 };
 
-const renderForm = ({
+const EmailAuthFormHarness = ({
   variant = "LOGIN",
   gateway = createGateway(),
   onAuthenticated = vi.fn(),
   onPasskeyEnrollment = vi.fn(),
-}: RenderFormOptions = {}) =>
-  render(
+}: RenderFormOptions) => {
+  const [operationError, setOperationError] = useState<string | null>(null);
+
+  return (
     <WebMCPConnectionProvider modelContext={null} currentUserId={null}>
       <ConnectionStatusIndicator />
       <EmailAuthForm
@@ -62,12 +64,31 @@ const renderForm = ({
         isPending={false}
         onSubmissionStart={() => true}
         onSubmissionEnd={() => undefined}
+        operationError={operationError}
+        onOperationError={setOperationError}
       />
     </WebMCPConnectionProvider>
+  );
+};
+
+const renderForm = ({
+  variant = "LOGIN",
+  gateway = createGateway(),
+  onAuthenticated = vi.fn(),
+  onPasskeyEnrollment = vi.fn(),
+}: RenderFormOptions = {}) =>
+  render(
+    <EmailAuthFormHarness
+      variant={variant}
+      gateway={gateway}
+      onAuthenticated={onAuthenticated}
+      onPasskeyEnrollment={onPasskeyEnrollment}
+    />
   );
 
 const PendingPasskeyHarness = ({ gateway }: { gateway: AuthGateway }) => {
   const [isPending, setIsPending] = useState(false);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   const startSubmission = () => {
     if (isPending) return false;
@@ -98,6 +119,8 @@ const PendingPasskeyHarness = ({ gateway }: { gateway: AuthGateway }) => {
         isPending={isPending}
         onSubmissionStart={startSubmission}
         onSubmissionEnd={endSubmission}
+        operationError={operationError}
+        onOperationError={setOperationError}
       />
     </WebMCPConnectionProvider>
   );
@@ -218,13 +241,16 @@ describe("EmailAuthForm", () => {
       screen.getByRole("button", { name: "Sign in with password" })
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "The email or password was not recognized."
-    );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The email or password was not recognized."
     );
     await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
+    expect(screen.getAllByText(
+      "The email or password was not recognized."
+    )).toHaveLength(1);
+    expect(screen.getByRole("status")).not.toHaveTextContent(
+      "The email or password was not recognized."
+    );
     expect(screen.queryByText("raw provider detail")).not.toBeInTheDocument();
   });
 
@@ -246,6 +272,12 @@ describe("EmailAuthForm", () => {
       "We could not send the sign-in link. Try again."
     );
     await waitFor(() => expect(alert).toHaveFocus());
+    expect(screen.getAllByText(
+      "We could not send the sign-in link. Try again."
+    )).toHaveLength(1);
+    expect(screen.getByRole("status")).not.toHaveTextContent(
+      "We could not send the sign-in link. Try again."
+    );
   });
 
   it("offers passkey enrollment after registration with a session", async () => {

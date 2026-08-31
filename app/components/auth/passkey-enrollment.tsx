@@ -62,8 +62,8 @@ export const PasskeyEnrollment = ({
     }
 
     const message = authFailureMessage(result.code);
-    announce(message);
     if (result.code === "PASSKEY_CANCELLED") {
+      announce(message);
       requestAnimationFrame(() => enrollButtonRef.current?.focus());
     } else {
       setOperationError(message);
