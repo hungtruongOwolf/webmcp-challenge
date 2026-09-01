@@ -15,6 +15,7 @@ import { ConfirmBridgeProvider } from "@/app/context/confirm-bridge-context";
 import { hueFromName } from "@/app/libs/avatar-color";
 import WebmcpTools from "@/app/components/webmcp-tools";
 import ActivityPanel from "@/app/components/activity-panel";
+import NewMessageAnnouncer from "@/app/components/accessibility/new-message-announcer";
 import RailNav from "./rail-nav";
 import ConversationList from "./conversation-list";
 import DirectoryModal from "./directory-modal";
@@ -114,6 +115,7 @@ function ShellInner({
         <ActivityPanel isOpen={overlay === "activity"} onClose={() => setOverlay(null)} />
 
         <WebmcpTools />
+        <NewMessageAnnouncer />
       </div>
     </OverlayProvider>
   );

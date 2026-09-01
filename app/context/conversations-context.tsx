@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -24,6 +25,15 @@ const CONVERSATION_SELECT = `id, name, is_group, created_at, last_message_at,
 type ConversationsContextValue = {
   conversations: FullConversationType[];
   ensureConversation: (id: string) => void;
+  /**
+   * Screen-reader-only announcement for a message that just arrived in a
+   * conversation the user isn't currently looking at -- body.tsx's own
+   * aria-live log already covers the open thread, so this is specifically
+   * for "you got something new somewhere else," the case a blind user has
+   * no other way to notice (no visual badge, and the WebMCP agent only
+   * runs when asked -- there's no page-initiated push into ChatGPT Voice).
+   */
+  newMessageAnnouncement: string;
 };
 
 const ConversationsContext = createContext<ConversationsContextValue | null>(null);
@@ -33,9 +43,20 @@ export function ConversationsProvider({
   children,
 }: PropsWithChildren<{ initialConversations: FullConversationType[] }>) {
   const [conversations, setConversations] = useState(initialConversations);
+  const [newMessageAnnouncement, setNewMessageAnnouncement] = useState("");
   const currentUser = useCurrentUser();
   const router = useRouter();
   const { conversationId } = useConversation();
+
+  const conversationsRef = useRef(conversations);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+
+  const conversationIdRef = useRef(conversationId);
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
 
   const fetchAndUpsertConversation = useCallback(async (id: string) => {
     const supabase = createClient();
@@ -92,7 +113,31 @@ export function ConversationsProvider({
       .on("broadcast", { event: "*" }, ({ payload }) => {
         const table = payload?.table;
 
-        if (table === "conversation_members" || table === "messages") {
+        if (table === "messages" && payload.record) {
+          const record = payload.record;
+          const isFromSomeoneElse = record.sender_id !== currentUser.id;
+          const isElsewhere = record.conversation_id !== conversationIdRef.current;
+
+          if (isFromSomeoneElse && isElsewhere) {
+            const convo = conversationsRef.current.find(
+              (c) => c.id === record.conversation_id
+            );
+            const sender = convo?.users.find((u) => u.id === record.sender_id);
+            const preview = record.body?.trim()
+              ? record.body.trim()
+              : record.image
+                ? "sent a photo"
+                : record.file_name
+                  ? `sent a file: ${record.file_name}`
+                  : "sent a message";
+
+            setNewMessageAnnouncement(
+              `New message from ${sender?.name ?? "someone"}: ${preview}`
+            );
+          }
+
+          fetchAndUpsertConversation(record.conversation_id);
+        } else if (table === "conversation_members") {
           fetchAndUpsertConversation(payload.record.conversation_id);
         } else if (table === "conversations") {
           const id = payload.old_record?.id ?? payload.record?.id;
@@ -109,7 +154,9 @@ export function ConversationsProvider({
   }, [currentUser?.id, conversationId, router, fetchAndUpsertConversation]);
 
   return (
-    <ConversationsContext.Provider value={{ conversations, ensureConversation }}>
+    <ConversationsContext.Provider
+      value={{ conversations, ensureConversation, newMessageAnnouncement }}
+    >
       {children}
     </ConversationsContext.Provider>
   );
