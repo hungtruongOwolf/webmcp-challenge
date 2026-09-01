@@ -119,7 +119,7 @@ const signInWithPassword = async (page: Page) => {
   await page.goto("/");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Sign in with password" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/conversations$/);
 };
 
@@ -131,10 +131,7 @@ test("signed-out authentication is keyboard accessible and has no serious axe vi
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(
-    page.getByRole("button", { name: "Email me a sign-in link" })
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Sign in with password" })
+    page.getByRole("button", { name: "Sign in" })
   ).toBeVisible();
 
   const supportsPasskeys = await page.evaluate(
@@ -156,7 +153,7 @@ test("signed-out authentication is keyboard accessible and has no serious axe vi
 
   await expectNoSeriousAxeViolations(page);
 
-  await page.getByRole("button", { name: "Sign in with password" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("alert")).toBeFocused();
   await expectNoSeriousAxeViolations(page);
 });
@@ -186,7 +183,7 @@ test("password sign-in focuses Conversations, announces connection, and authenti
   const heading = page.getByRole("heading", { name: "Conversations" });
   await expect(heading).toBeFocused();
   await expect(page.getByRole("status")).toHaveText(
-    "Signed in. Messenger connected."
+    "Signed in. Verb connected."
   );
   await expect.poll(() => connectionStatus(page)).toMatchObject({
     authenticated: true,
@@ -289,13 +286,13 @@ test("logout aborts the authenticated registration before restoring the public s
   await expectNoSeriousAxeViolations(page);
 });
 
-test("Messenger remains operable after sign-in without the browser WebMCP API", async ({
+test("Verb remains operable after sign-in without the browser WebMCP API", async ({
   page,
 }) => {
   await signInWithPassword(page);
 
   await expect(page.getByRole("status")).toHaveText(
-    "Signed in. Messenger is ready; agent tools are unavailable in this browser."
+    "Signed in. Verb is ready; agent tools are unavailable in this browser."
   );
   await expect(page.getByRole("heading", { name: "Conversations" })).toBeFocused();
   await expect(

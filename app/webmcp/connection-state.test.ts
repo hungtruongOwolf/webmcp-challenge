@@ -20,9 +20,7 @@ describe("connectionReducer", () => {
       userId: "user-a",
     });
     expect(connected).toEqual({ status: "CONNECTED", userId: "user-a" });
-    expect(connectionMessage(connected)).toBe(
-      "Signed in. Messenger connected."
-    );
+    expect(connectionMessage(connected)).toBe("Signed in. Verb connected.");
   });
 
   it("represents unavailable, failed, expired, and signed-out states", () => {

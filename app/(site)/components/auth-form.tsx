@@ -171,10 +171,10 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
               }}
             >
               <p style={{ margin: "0 0 6px" }}>
-                That sign-in link is invalid or expired.
+                That confirmation link is invalid or expired.
               </p>
               <a href="#email" style={{ color: "var(--accent-t)" }}>
-                Email me a new link
+                Try creating your account again
               </a>
             </div>
           )}
@@ -229,7 +229,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
           >
             <span style={{ color: "var(--t3)" }}>
               {variant === "LOGIN"
-                ? "New to Messenger?"
+                ? "New to Verb?"
                 : "Already have an account?"}
             </span>
             <button

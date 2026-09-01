@@ -30,7 +30,6 @@ const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
     ok: true as const,
     value: { hasSession: true },
   })),
-  sendEmailLink: vi.fn(async () => success),
   registerPasskey: vi.fn(async () => success),
   listPasskeys: vi.fn(async () => ({ ok: true as const, value: [] })),
   deletePasskey: vi.fn(async () => success),
@@ -134,44 +133,26 @@ describe("EmailAuthForm", () => {
     });
   });
 
-  it("keeps email-link before the password toggle in the control order, password collapsed by default", () => {
+  it("shows the email and password fields directly, no other sign-in method", () => {
     renderForm();
 
-    const controls = screen.getAllByRole("button");
-    expect(controls.map((control) => control.textContent)).toEqual([
-      "Email me a sign-in link",
-      "Use password instead",
-    ]);
-    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
-  });
-
-  it("reveals the password field after 'Use password instead' is clicked", async () => {
-    const user = userEvent.setup();
-    renderForm();
-
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
-
+    expect(screen.getByLabelText("Email")).toBeVisible();
     expect(screen.getByLabelText("Password")).toBeVisible();
     expect(
-      screen.getByRole("button", { name: "Sign in with password" })
+      screen.getByRole("button", { name: "Sign in" })
     ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /email me a sign-in link/i })
+    ).not.toBeInTheDocument();
   });
 
-  it("focuses its alert summary and marks email invalid after an empty email action", async () => {
-    const user = userEvent.setup();
-    renderForm();
+  it("shows a Name field only for the REGISTER variant", () => {
+    renderForm({ variant: "REGISTER" });
 
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
-
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
-    expect(screen.getByLabelText("Email")).toHaveAttribute(
-      "aria-invalid",
-      "true"
-    );
+    expect(screen.getByLabelText("Name")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Create account" })
+    ).toBeVisible();
   });
 
   it("reports an empty password without erasing the entered email", async () => {
@@ -180,68 +161,28 @@ describe("EmailAuthForm", () => {
     const email = screen.getByLabelText("Email");
 
     await user.type(email, "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Sign in with password" })
-    );
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(screen.getByText("Password is required.")).toBeVisible();
     expect(email).toHaveValue("reader@example.org");
     await waitFor(() => expect(screen.getByRole("alert")).toHaveFocus());
   });
 
-  it("requests a login link without creating a user and announces success", async () => {
+  it("signs in with a password and calls onAuthenticated", async () => {
     const user = userEvent.setup();
-    const sendEmailLink = vi.fn(async () => success);
-    renderForm({ gateway: createGateway({ sendEmailLink }) });
+    const signInWithPassword = vi.fn(async () => success);
+    const onAuthenticated = vi.fn();
+    renderForm({ gateway: createGateway({ signInWithPassword }), onAuthenticated });
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
+    await user.type(screen.getByLabelText("Password"), "the password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(sendEmailLink).toHaveBeenCalledWith({
+    expect(signInWithPassword).toHaveBeenCalledWith({
       email: "reader@example.org",
-      returnPath: "/users",
-      shouldCreateUser: false,
+      password: "the password",
     });
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Sign-in link sent. Check your email."
-    );
-  });
-
-  it("requires a name before requesting a registration link", async () => {
-    const user = userEvent.setup();
-    const sendEmailLink = vi.fn(async () => success);
-    renderForm({
-      variant: "REGISTER",
-      gateway: createGateway({ sendEmailLink }),
-    });
-
-    await user.type(screen.getByLabelText("Email"), "new@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
-
-    expect(screen.getByText("Name is required.")).toBeVisible();
-    expect(sendEmailLink).not.toHaveBeenCalled();
-
-    await user.type(screen.getByLabelText("Name"), "Ada Reader");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
-
-    expect(sendEmailLink).toHaveBeenCalledWith({
-      email: "new@example.org",
-      name: "Ada Reader",
-      returnPath: "/users",
-      shouldCreateUser: true,
-    });
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Check your email to finish creating your account."
-    );
+    await waitFor(() => expect(onAuthenticated).toHaveBeenCalledOnce());
   });
 
   it("announces the fixed invalid-credentials message instead of provider text", async () => {
@@ -254,13 +195,8 @@ describe("EmailAuthForm", () => {
     renderForm({ gateway: createGateway({ signInWithPassword }) });
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
     await user.type(screen.getByLabelText("Password"), "wrong password");
-    await user.click(
-      screen.getByRole("button", { name: "Sign in with password" })
-    );
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The email or password was not recognized."
@@ -275,32 +211,6 @@ describe("EmailAuthForm", () => {
     expect(screen.queryByText("raw provider detail")).not.toBeInTheDocument();
   });
 
-  it("focuses a normalized alert when an email-link request fails", async () => {
-    const user = userEvent.setup();
-    const sendEmailLink = vi.fn(async () => ({
-      ok: false as const,
-      code: "EMAIL_LINK_FAILED" as const,
-    }));
-    renderForm({ gateway: createGateway({ sendEmailLink }) });
-
-    await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
-
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent(
-      "We could not send the sign-in link. Try again."
-    );
-    await waitFor(() => expect(alert).toHaveFocus());
-    expect(screen.getAllByText(
-      "We could not send the sign-in link. Try again."
-    )).toHaveLength(1);
-    expect(screen.getByRole("status")).not.toHaveTextContent(
-      "We could not send the sign-in link. Try again."
-    );
-  });
-
   it("offers passkey enrollment after registration with a session", async () => {
     const user = userEvent.setup();
     const onPasskeyEnrollment = vi.fn();
@@ -308,13 +218,8 @@ describe("EmailAuthForm", () => {
 
     await user.type(screen.getByLabelText("Name"), "Ada Reader");
     await user.type(screen.getByLabelText("Email"), "new@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
     await user.type(screen.getByLabelText("Password"), "strong password");
-    await user.click(
-      screen.getByRole("button", { name: "Create account with password" })
-    );
+    await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(onPasskeyEnrollment).toHaveBeenCalledOnce();
   });
@@ -332,60 +237,37 @@ describe("EmailAuthForm", () => {
 
     await user.type(screen.getByLabelText("Name"), "Ada Reader");
     await user.type(screen.getByLabelText("Email"), "new@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
     await user.type(screen.getByLabelText("Password"), "strong password");
-    await user.click(
-      screen.getByRole("button", { name: "Create account with password" })
-    );
+    await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(screen.getByRole("status")).toHaveTextContent(
       "Check your email to finish creating your account."
     );
   });
 
-  it("blocks email and password actions while the parent passkey request is pending", async () => {
+  it("blocks the password action while the parent passkey request is pending", async () => {
     const user = userEvent.setup();
     const passkey = deferred<AuthResult>();
-    const sendEmailLink = vi.fn(async () => success);
     const signInWithPassword = vi.fn(async () => success);
     const gateway = createGateway({
       signInWithPasskey: vi.fn(() => passkey.promise),
-      sendEmailLink,
       signInWithPassword,
     });
     render(<PendingPasskeyHarness gateway={gateway} />);
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
     await user.type(screen.getByLabelText("Password"), "secret phrase");
     await user.click(
       screen.getByRole("button", { name: "Start passkey request" })
     );
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Sign in with password" })
-    );
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(sendEmailLink).not.toHaveBeenCalled();
     expect(signInWithPassword).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Sign in with password" })
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
 
     passkey.resolve(success);
     await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Email me a sign-in link" })
-      ).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled()
     );
   });
 });

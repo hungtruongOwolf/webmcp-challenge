@@ -239,7 +239,7 @@ export const WebMCPConnectionProvider = ({
                 content: [
                   {
                     type: "text" as const,
-                    text: "This Messenger session is no longer active. Sign in on the page and try again.",
+                    text: "This Verb session is no longer active. Sign in on the page and try again.",
                   },
                 ],
                 isError: true,

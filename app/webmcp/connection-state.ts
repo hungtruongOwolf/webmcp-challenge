@@ -30,18 +30,18 @@ export type ConnectionSnapshot = {
   nextAction: "sign_in_on_page" | "none";
   /**
    * Only set when nextAction is "sign_in_on_page". Every sign-in path here
-   * (password, magic-link email, passkey biometric/security-key) requires
-   * the human's own action -- there is no WebMCP tool for it, by design.
-   * An agent that doesn't read this ends up repeatedly clicking the
-   * sign-in button itself, which can never complete a passkey ceremony.
+   * (password, passkey biometric/security-key) requires the human's own
+   * action -- there is no WebMCP tool for it, by design. An agent that
+   * doesn't read this ends up repeatedly clicking the sign-in button
+   * itself, which can never complete a passkey ceremony.
    */
   guidance: string | null;
 };
 
 export const SIGN_IN_GUIDANCE =
-  "Sign-in requires the human, not the agent -- password, magic-link email, and passkey " +
-  "(biometric/security-key) all need the human's own action on this page. Do not click " +
-  "sign-in controls yourself. Ask the user to sign in, then call this tool again.";
+  "Sign-in requires the human, not the agent -- password and passkey (biometric/security-key) " +
+  "both need the human's own action on this page. Do not click sign-in controls yourself. " +
+  "Ask the user to sign in, then call this tool again.";
 
 export const initialConnectionState: ConnectionState = {
   status: "SIGNED_OUT",
@@ -77,11 +77,11 @@ export const connectionReducer = (
 const CONNECTION_MESSAGES: Record<ConnectionState["status"], string> = {
   SIGNED_OUT: "Sign in required.",
   AUTHENTICATING: "Signing in…",
-  SESSION_READY: "Signed in. Connecting Messenger…",
-  TOOLS_REGISTERING: "Signed in. Connecting Messenger…",
-  CONNECTED: "Signed in. Messenger connected.",
+  SESSION_READY: "Signed in. Connecting to Verb…",
+  TOOLS_REGISTERING: "Signed in. Connecting to Verb…",
+  CONNECTED: "Signed in. Verb connected.",
   SIGNED_IN_TOOLS_UNAVAILABLE:
-    "Signed in. Messenger is ready; agent tools are unavailable in this browser.",
+    "Signed in. Verb is ready; agent tools are unavailable in this browser.",
   SIGNED_IN_TOOLS_FAILED: "Signed in. Agent tools could not connect.",
   SESSION_EXPIRED: "Your session expired. Nothing was sent. Sign in again.",
 };

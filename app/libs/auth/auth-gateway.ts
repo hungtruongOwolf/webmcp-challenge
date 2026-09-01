@@ -6,7 +6,6 @@ export type AuthFailureCode =
   | "PASSKEY_NOT_FOUND"
   | "INVALID_CREDENTIALS"
   | "RATE_LIMITED"
-  | "EMAIL_LINK_FAILED"
   | "PASSKEY_FAILED"
   | "UNKNOWN";
 
@@ -33,12 +32,6 @@ export type AuthGateway = {
     password: string;
     returnPath: string;
   }): Promise<AuthResult<{ hasSession: boolean }>>;
-  sendEmailLink(input: {
-    email: string;
-    name?: string;
-    returnPath: string;
-    shouldCreateUser: boolean;
-  }): Promise<AuthResult>;
   registerPasskey(): Promise<AuthResult>;
   listPasskeys(): Promise<AuthResult<PasskeyRecord[]>>;
   deletePasskey(passkeyId: string): Promise<AuthResult>;
@@ -63,14 +56,6 @@ type AuthClient = {
         emailRedirectTo: string;
       };
     }): Promise<SupabaseResponse<{ session: unknown }>>;
-    signInWithOtp(input: {
-      email: string;
-      options: {
-        shouldCreateUser: boolean;
-        emailRedirectTo: string;
-        data: { name: string } | undefined;
-      };
-    }): Promise<SupabaseResponse<unknown>>;
     registerPasskey(): Promise<SupabaseResponse<unknown>>;
     passkey: {
       list(): Promise<SupabaseResponse<unknown>>;
@@ -81,9 +66,8 @@ type AuthClient = {
   };
 };
 
-type FailureContext = "email-link" | "passkey" | "default";
+type FailureContext = "passkey" | "default";
 
-type SendEmailLinkInput = Parameters<AuthGateway["sendEmailLink"]>[0];
 type SignUpWithPasswordInput = Parameters<
   AuthGateway["signUpWithPassword"]
 >[0];
@@ -115,9 +99,6 @@ const normalizeAuthFailure = (
   }
   if (code?.includes("rate_limit")) {
     return { ok: false, code: "RATE_LIMITED" };
-  }
-  if (context === "email-link") {
-    return { ok: false, code: "EMAIL_LINK_FAILED" };
   }
   if (context === "passkey") {
     return { ok: false, code: "PASSKEY_FAILED" };
@@ -161,33 +142,6 @@ export const createAuthGateway = (
   client: AuthClient = createClient(),
   appOrigin: string = resolveAppOrigin()
 ): AuthGateway => {
-  const sendEmailLink = async ({
-    email,
-    name,
-    shouldCreateUser,
-    returnPath,
-  }: SendEmailLinkInput): Promise<AuthResult> => {
-    try {
-      const { error } = await client.auth.signInWithOtp({
-        email,
-        options: {
-          shouldCreateUser,
-          emailRedirectTo: buildAuthCallbackUrl(
-            appOrigin,
-            returnPath,
-            shouldCreateUser
-          ),
-          data: name ? { name } : undefined,
-        },
-      });
-      return error
-        ? normalizeAuthFailure(error, "email-link")
-        : { ok: true, value: undefined };
-    } catch (error) {
-      return normalizeAuthFailure(error, "email-link");
-    }
-  };
-
   const signUpWithPassword = async ({
     email,
     password,
@@ -288,7 +242,6 @@ export const createAuthGateway = (
     signInWithPasskey,
     signInWithPassword,
     signUpWithPassword,
-    sendEmailLink,
     registerPasskey,
     listPasskeys,
     deletePasskey,
@@ -298,11 +251,9 @@ export const createAuthGateway = (
 const AUTH_FAILURE_MESSAGES: Record<AuthFailureCode, string> = {
   PASSKEY_CANCELLED:
     "Passkey sign-in cancelled. Choose another sign-in method when ready.",
-  PASSKEY_NOT_FOUND:
-    "No passkey was found for this device. Use an email link or password.",
+  PASSKEY_NOT_FOUND: "No passkey was found for this device. Use a password.",
   INVALID_CREDENTIALS: "The email or password was not recognized.",
   RATE_LIMITED: "Too many attempts. Wait a moment, then try again.",
-  EMAIL_LINK_FAILED: "We could not send the sign-in link. Try again.",
   PASSKEY_FAILED:
     "The passkey could not be used. Try another sign-in method.",
   UNKNOWN: "We could not complete authentication. Try again.",

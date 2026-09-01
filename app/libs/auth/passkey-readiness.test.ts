@@ -25,7 +25,7 @@ describe("evaluatePasskeyReadiness", () => {
     ).toEqual({
       status: "misconfigured",
       message:
-        "Passkeys are temporarily unavailable. Use an email link or password.",
+        "Passkeys are temporarily unavailable. Use a password instead.",
     });
   });
 
@@ -51,7 +51,7 @@ describe("evaluatePasskeyReadiness", () => {
     ).toEqual({
       status: "unsupported",
       message:
-        "Passkeys are not supported in this browser. Use an email link or password.",
+        "Passkeys are not supported in this browser. Use a password instead.",
     });
   });
 

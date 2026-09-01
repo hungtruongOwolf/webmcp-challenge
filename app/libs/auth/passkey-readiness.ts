@@ -3,11 +3,11 @@ export type PasskeyReadiness =
   | { status: "ready"; message: "Passkeys are available." }
   | {
       status: "unsupported";
-      message: "Passkeys are not supported in this browser. Use an email link or password.";
+      message: "Passkeys are not supported in this browser. Use a password instead.";
     }
   | {
       status: "misconfigured";
-      message: "Passkeys are temporarily unavailable. Use an email link or password.";
+      message: "Passkeys are temporarily unavailable. Use a password instead.";
     };
 
 type PasskeyReadinessInput = {
@@ -25,13 +25,13 @@ const READY: PasskeyReadiness = {
 const UNSUPPORTED: PasskeyReadiness = {
   status: "unsupported",
   message:
-    "Passkeys are not supported in this browser. Use an email link or password.",
+    "Passkeys are not supported in this browser. Use a password instead.",
 };
 
 const MISCONFIGURED: PasskeyReadiness = {
   status: "misconfigured",
   message:
-    "Passkeys are temporarily unavailable. Use an email link or password.",
+    "Passkeys are temporarily unavailable. Use a password instead.",
 };
 
 export const evaluatePasskeyReadiness = ({

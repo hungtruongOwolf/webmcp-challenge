@@ -59,7 +59,6 @@ const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
     ok: true,
     value: { hasSession: true },
   }),
-  sendEmailLink: async () => success,
   registerPasskey: async () => success,
   listPasskeys: async () => ({ ok: true, value: [passkey] }),
   deletePasskey: async () => success,
@@ -78,7 +77,7 @@ const renderManager = (gateway?: AuthGateway) => render(managerTree(gateway));
 const waitForProvider = () =>
   waitFor(() =>
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Signed in. Messenger is ready; agent tools are unavailable in this browser."
+      "Signed in. Verb is ready; agent tools are unavailable in this browser."
     )
   );
 
@@ -130,13 +129,13 @@ describe("PasskeyManager", () => {
     browser.readiness = {
       status: "unsupported",
       message:
-        "Passkeys are not supported in this browser. Use an email link or password.",
+        "Passkeys are not supported in this browser. Use a password instead.",
     };
     view.rerender(managerTree(gateway));
 
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Passkeys are not supported in this browser. Use an email link or password."
+        "Passkeys are not supported in this browser. Use a password instead."
       )
     );
     expect(screen.getAllByRole("status")).toHaveLength(1);
@@ -146,7 +145,7 @@ describe("PasskeyManager", () => {
     browser.readiness = {
       status: "unsupported",
       message:
-        "Passkeys are not supported in this browser. Use an email link or password.",
+        "Passkeys are not supported in this browser. Use a password instead.",
     };
     vi.stubGlobal("PublicKeyCredential", undefined);
 

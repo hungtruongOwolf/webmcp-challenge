@@ -43,14 +43,12 @@ export const EmailAuthForm = ({
   onOperationError,
 }: EmailAuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
-  const [showPassword, setShowPassword] = useState(false);
   const [focusSummaryRequested, setFocusSummaryRequested] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   const {
     register,
     handleSubmit,
     setError,
-    clearErrors,
     formState: { errors },
   } = useForm<EmailAuthValues>({
     defaultValues: { name: "", email: "", password: "" },
@@ -74,32 +72,6 @@ export const EmailAuthForm = ({
   const focusValidationSummary = () => {
     onOperationError(null);
     focusSummary();
-  };
-
-  const sendEmailLink = async (values: EmailAuthValues) => {
-    if (!onSubmissionStart()) return;
-    onOperationError(null);
-    beginAuthentication();
-    const result = await gateway.sendEmailLink({
-      email: values.email,
-      ...(variant === "REGISTER" ? { name: values.name } : {}),
-      returnPath,
-      shouldCreateUser: variant === "REGISTER",
-    });
-    onSubmissionEnd();
-
-    if (!result.ok) {
-      const message = authFailureMessage(result.code);
-      returnToSignedOut("");
-      onOperationError(message);
-      return;
-    }
-
-    returnToSignedOut(
-      variant === "LOGIN"
-        ? "Sign-in link sent. Check your email."
-        : "Check your email to finish creating your account."
-    );
   };
 
   const submitPassword = async (values: EmailAuthValues) => {
@@ -152,12 +124,6 @@ export const EmailAuthForm = ({
     }
 
     returnToSignedOut("Check your email to finish creating your account.");
-  };
-
-  const emailLinkAction = () => {
-    onOperationError(null);
-    clearErrors("password");
-    void handleSubmit(sendEmailLink, focusValidationSummary)();
   };
 
   const passwordAction = handleSubmit(submitPassword, focusValidationSummary);
@@ -213,63 +179,19 @@ export const EmailAuthForm = ({
         required
       />
 
-      <Button
-        type="button"
-        onClick={emailLinkAction}
+      <Input<EmailAuthValues>
+        type="password"
+        id="password"
+        label="Password"
+        autoComplete={variant === "LOGIN" ? "current-password" : "new-password"}
+        register={register}
+        errors={errors}
         disabled={isPending}
-        fullWidth
-      >
-        Email me a sign-in link
+      />
+
+      <Button type="submit" disabled={isPending} fullWidth>
+        {variant === "LOGIN" ? "Sign in" : "Create account"}
       </Button>
-
-      {showPassword ? (
-        <>
-          <div
-            role="separator"
-            aria-label="or use a password"
-            style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--t3)" }}
-          >
-            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
-            <span aria-hidden="true">or use a password</span>
-            <span style={{ flex: 1, height: 1, background: "var(--hair)" }} aria-hidden="true" />
-          </div>
-
-          <Input<EmailAuthValues>
-            type="password"
-            id="password"
-            label="Password"
-            autoComplete={
-              variant === "LOGIN" ? "current-password" : "new-password"
-            }
-            register={register}
-            errors={errors}
-            disabled={isPending}
-          />
-
-          <Button type="submit" disabled={isPending} fullWidth secondary>
-            {variant === "LOGIN"
-              ? "Sign in with password"
-              : "Create account with password"}
-          </Button>
-        </>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setShowPassword(true)}
-          disabled={isPending}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 4,
-            fontSize: 13,
-            fontWeight: 500,
-            color: "var(--t3)",
-            cursor: isPending ? "default" : "pointer",
-          }}
-        >
-          Use password instead
-        </button>
-      )}
     </form>
   );
 };

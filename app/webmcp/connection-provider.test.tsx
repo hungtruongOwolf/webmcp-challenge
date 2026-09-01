@@ -116,7 +116,7 @@ describe("WebMCPConnectionProvider", () => {
     );
     const serverHtml = renderToString(tree);
 
-    expect(serverHtml).toContain("Signed in. Connecting Messenger…");
+    expect(serverHtml).toContain("Signed in. Connecting to Verb…");
     expect(serverHtml).not.toContain("Sign in required.");
 
     const container = document.createElement("div");
@@ -130,7 +130,7 @@ describe("WebMCPConnectionProvider", () => {
 
     const root = hydrateRoot(container, tree);
     await waitFor(() =>
-      expect(container).toHaveTextContent("Signed in. Messenger connected.")
+      expect(container).toHaveTextContent("Signed in. Verb connected.")
     );
     observer.disconnect();
 
@@ -162,7 +162,7 @@ describe("WebMCPConnectionProvider", () => {
         <ConnectionProbe />
       </WebMCPConnectionProvider>
     );
-    await screen.findByText("Signed in. Messenger connected.");
+    await screen.findByText("Signed in. Verb connected.");
     expect(modelContext.abortedRegistrationCount()).toBe(1);
     expect(modelContext.activeNames()).toEqual([
       "get_connection_status",
@@ -197,7 +197,7 @@ describe("WebMCPConnectionProvider", () => {
 
     const liveRegion = await screen.findByRole("status");
     await waitFor(() =>
-      expect(liveRegion).toHaveTextContent("Signed in. Messenger connected.")
+      expect(liveRegion).toHaveTextContent("Signed in. Verb connected.")
     );
     const announcements: string[] = [];
     const observer = new MutationObserver(() => {
@@ -328,7 +328,7 @@ describe("WebMCPConnectionProvider", () => {
         <StateProbe />
       </WebMCPConnectionProvider>
     );
-    await screen.findByText("Signed in. Messenger connected.");
+    await screen.findByText("Signed in. Verb connected.");
     expect(events).toEqual([
       "register:user-a-tool",
       "abort:user-a-tool",
@@ -337,7 +337,7 @@ describe("WebMCPConnectionProvider", () => {
 
     releaseUserA?.();
     await act(async () => Promise.resolve());
-    expect(screen.getByText("Signed in. Messenger connected.")).toBeVisible();
+    expect(screen.getByText("Signed in. Verb connected.")).toBeVisible();
     expect(screen.getByRole("status", { name: "connected user" })).toHaveTextContent(
       "user-b"
     );
@@ -369,7 +369,7 @@ describe("WebMCPConnectionProvider", () => {
         <ConnectionProbe />
       </WebMCPConnectionProvider>
     );
-    await screen.findByText("Signed in. Messenger connected.");
+    await screen.findByText("Signed in. Verb connected.");
 
     navigation.pathname = "/users";
     rerender(
@@ -439,7 +439,7 @@ describe("WebMCPConnectionProvider", () => {
 
     expect(
       await screen.findByText(
-        "Signed in. Messenger is ready; agent tools are unavailable in this browser."
+        "Signed in. Verb is ready; agent tools are unavailable in this browser."
       )
     ).toBeVisible();
   });
@@ -457,7 +457,7 @@ describe("WebMCPConnectionProvider", () => {
         <ConnectionProbe />
       </WebMCPConnectionProvider>
     );
-    await screen.findByText("Signed in. Messenger connected.");
+    await screen.findByText("Signed in. Verb connected.");
 
     fireEvent.click(screen.getByRole("button", { name: "Expire session" }));
 
@@ -498,7 +498,7 @@ describe("WebMCPConnectionProvider", () => {
     );
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Signed in. Messenger connected."
+        "Signed in. Verb connected."
       )
     );
 
@@ -576,7 +576,7 @@ describe("WebMCPConnectionProvider", () => {
     );
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Signed in. Messenger connected."
+        "Signed in. Verb connected."
       )
     );
 
@@ -667,7 +667,7 @@ describe("WebMCPConnectionProvider", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Signed in. Messenger connected."
+        "Signed in. Verb connected."
       )
     );
     expect(modelContext.activeNames()).toEqual(["connected-tool"]);
@@ -698,7 +698,7 @@ describe("WebMCPConnectionProvider", () => {
     );
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Signed in. Messenger connected."
+        "Signed in. Verb connected."
       )
     );
     fireEvent.click(screen.getByRole("button", { name: "Show provider" }));

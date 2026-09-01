@@ -10,9 +10,9 @@ import { useWebMCPConnection } from "./connection-provider";
 const VISIBLE_LABELS: Record<ConnectionStatusName, string> = {
   SIGNED_OUT: "Sign in required",
   AUTHENTICATING: "Signing in",
-  SESSION_READY: "Connecting Messenger",
-  TOOLS_REGISTERING: "Connecting Messenger",
-  CONNECTED: "Messenger connected",
+  SESSION_READY: "Connecting to Verb",
+  TOOLS_REGISTERING: "Connecting to Verb",
+  CONNECTED: "Verb connected",
   SIGNED_IN_TOOLS_UNAVAILABLE: "Agent tools unavailable",
   SIGNED_IN_TOOLS_FAILED: "Connection failed",
   SESSION_EXPIRED: "Session expired",

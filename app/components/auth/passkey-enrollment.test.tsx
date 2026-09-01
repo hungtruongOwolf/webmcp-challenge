@@ -56,7 +56,6 @@ const createGateway = (
     ok: true,
     value: { hasSession: true },
   }),
-  sendEmailLink: async () => success,
   registerPasskey,
   listPasskeys: async () => ({ ok: true, value: [] }),
   deletePasskey: async () => success,
@@ -75,7 +74,7 @@ const renderEnrollment = (gateway?: AuthGateway, returnPath = "/users") =>
 const waitForProvider = () =>
   waitFor(() =>
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Signed in. Messenger is ready; agent tools are unavailable in this browser."
+      "Signed in. Verb is ready; agent tools are unavailable in this browser."
     )
   );
 
@@ -222,12 +221,12 @@ describe("PasskeyEnrollment", () => {
     {
       status: "unsupported",
       message:
-        "Passkeys are not supported in this browser. Use an email link or password.",
+        "Passkeys are not supported in this browser. Use a password instead.",
     },
     {
       status: "misconfigured",
       message:
-        "Passkeys are temporarily unavailable. Use an email link or password.",
+        "Passkeys are temporarily unavailable. Use a password instead.",
     },
   ])(
     "disables only setup when readiness is $status",

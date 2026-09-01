@@ -25,10 +25,6 @@ const makeClient = () => ({
       data: successAuthData,
       error: null,
     }),
-    signInWithOtp: vi.fn().mockResolvedValue({
-      data: { user: null, session: null, messageId: "message-id" },
-      error: null,
-    }),
     registerPasskey: vi.fn().mockResolvedValue({
       data: {
         id: "new-passkey",
@@ -111,20 +107,19 @@ describe("auth failure normalization", () => {
     ).resolves.toEqual({ ok: false, code: "INVALID_CREDENTIALS" });
   });
 
-  it("maps email rate limiting before the email-link fallback", async () => {
+  it("maps rate limiting from a rejected password sign-in", async () => {
     const client = makeClient();
-    client.auth.signInWithOtp.mockResolvedValueOnce({
-      data: { user: null, session: null, messageId: null },
+    client.auth.signInWithPassword.mockResolvedValueOnce({
+      data: { user: null, session: null, weakPassword: null },
       error: Object.assign(new Error("raw rate-limit details"), {
-        code: "email_rate_limit_exceeded",
+        code: "over_email_send_rate_limit",
       }),
     });
 
     await expect(
-      gatewayFor(client).sendEmailLink({
+      gatewayFor(client).signInWithPassword({
         email: "blind.user@example.org",
-        returnPath: "/conversations",
-        shouldCreateUser: false,
+        password: "password",
       })
     ).resolves.toEqual({ ok: false, code: "RATE_LIMITED" });
   });
@@ -148,46 +143,9 @@ describe("auth failure normalization", () => {
     expect(JSON.stringify(result)).not.toContain("database host");
   });
 
-  it("maps an unknown email-link error to its operation-specific failure", async () => {
-    const client = makeClient();
-    client.auth.signInWithOtp.mockResolvedValueOnce({
-      data: { user: null, session: null, messageId: null },
-      error: new Error("raw provider response"),
-    });
-
-    await expect(
-      gatewayFor(client).sendEmailLink({
-        email: "blind.user@example.org",
-        returnPath: "/conversations",
-        shouldCreateUser: false,
-      })
-    ).resolves.toEqual({ ok: false, code: "EMAIL_LINK_FAILED" });
-  });
 });
 
 describe("email and password boundaries", () => {
-  it("sends an email link with account metadata and a safe callback URL", async () => {
-    const client = makeClient();
-
-    const result = await gatewayFor(client).sendEmailLink({
-      email: "blind.user@example.org",
-      name: "Blind User",
-      returnPath: "/conversations",
-      shouldCreateUser: true,
-    });
-
-    expect(client.auth.signInWithOtp).toHaveBeenCalledWith({
-      email: "blind.user@example.org",
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo:
-          "https://messenger.example/auth/callback?next=%2Fconversations&enroll=passkey",
-        data: { name: "Blind User" },
-      },
-    });
-    expect(result).toEqual({ ok: true, value: undefined });
-  });
-
   it("signs up with name metadata and returns only session presence", async () => {
     const client = makeClient();
 
@@ -325,18 +283,6 @@ describe("rejected Supabase operations", () => {
       code: "UNKNOWN",
     },
     {
-      operation: "email link",
-      reject: (client, error) =>
-        client.auth.signInWithOtp.mockRejectedValueOnce(error),
-      invoke: (gateway) =>
-        gateway.sendEmailLink({
-          email: "blind.user@example.org",
-          returnPath: "/conversations",
-          shouldCreateUser: false,
-        }),
-      code: "EMAIL_LINK_FAILED",
-    },
-    {
       operation: "passkey registration",
       reject: (client, error) =>
         client.auth.registerPasskey.mockRejectedValueOnce(error),
@@ -381,11 +327,10 @@ it.each<[AuthFailureCode, string]>([
   ],
   [
     "PASSKEY_NOT_FOUND",
-    "No passkey was found for this device. Use an email link or password.",
+    "No passkey was found for this device. Use a password.",
   ],
   ["INVALID_CREDENTIALS", "The email or password was not recognized."],
   ["RATE_LIMITED", "Too many attempts. Wait a moment, then try again."],
-  ["EMAIL_LINK_FAILED", "We could not send the sign-in link. Try again."],
   [
     "PASSKEY_FAILED",
     "The passkey could not be used. Try another sign-in method.",

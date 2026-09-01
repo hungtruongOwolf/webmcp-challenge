@@ -85,7 +85,6 @@ const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
     ok: true as const,
     value: { hasSession: true },
   })),
-  sendEmailLink: vi.fn(async () => success),
   registerPasskey: vi.fn(async () => success),
   listPasskeys: vi.fn(async () => ({ ok: true as const, value: [] })),
   deletePasskey: vi.fn(async () => success),
@@ -133,12 +132,7 @@ describe("AuthForm", () => {
 
     expect(
       screen.getAllByRole("button").map((button) => button.textContent)
-    ).toEqual([
-      "Sign in with a passkey",
-      "Email me a sign-in link",
-      "Use password instead",
-      "Create an account",
-    ]);
+    ).toEqual(["Sign in with a passkey", "Sign in", "Create an account"]);
     expect(passkeyButton).toHaveAccessibleDescription(
       "Your operating system may offer a fingerprint, face, device PIN, password manager, or hardware security key."
     );
@@ -208,15 +202,15 @@ describe("AuthForm", () => {
     );
   });
 
-  it("clears a passkey failure when email-link authentication starts", async () => {
+  it("clears a passkey failure when password authentication starts", async () => {
     const user = userEvent.setup();
-    const emailLink = deferred<AuthResult>();
+    const password = deferred<AuthResult>();
     boundary.gateway = createGateway({
       signInWithPasskey: vi.fn(async () => ({
         ok: false as const,
         code: "PASSKEY_FAILED" as const,
       })),
-      sendEmailLink: vi.fn(() => emailLink.promise),
+      signInWithPassword: vi.fn(() => password.promise),
     });
     renderAuthForm();
 
@@ -226,37 +220,31 @@ describe("AuthForm", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
+    await user.type(screen.getByLabelText("Password"), "secret phrase");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Signing in…");
 
-    emailLink.resolve(success);
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "Sign-in link sent. Check your email."
-      )
-    );
+    password.resolve(success);
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/users"));
   });
 
-  it("clears an email-link failure when passkey authentication starts", async () => {
+  it("clears a password failure when passkey authentication starts", async () => {
     const user = userEvent.setup();
     const passkey = deferred<AuthResult>();
     boundary.gateway = createGateway({
-      sendEmailLink: vi.fn(async () => ({
+      signInWithPassword: vi.fn(async () => ({
         ok: false as const,
-        code: "EMAIL_LINK_FAILED" as const,
+        code: "INVALID_CREDENTIALS" as const,
       })),
       signInWithPasskey: vi.fn(() => passkey.promise),
     });
     renderAuthForm();
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
+    await user.type(screen.getByLabelText("Password"), "wrong password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(screen.getAllByRole("alert")).toHaveLength(1);
 
     const passkeyButton = screen.getByRole("button", {
@@ -274,51 +262,19 @@ describe("AuthForm", () => {
     );
   });
 
-  it("clears a passkey failure when password authentication starts", async () => {
-    const user = userEvent.setup();
-    const password = deferred<AuthResult>();
-    boundary.gateway = createGateway({
-      signInWithPasskey: vi.fn(async () => ({
-        ok: false as const,
-        code: "PASSKEY_FAILED" as const,
-      })),
-      signInWithPassword: vi.fn(() => password.promise),
-    });
-    renderAuthForm();
-
-    await user.click(
-      screen.getByRole("button", { name: "Sign in with a passkey" })
-    );
-    await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
-    await user.type(screen.getByLabelText("Password"), "secret phrase");
-    await user.click(
-      screen.getByRole("button", { name: "Sign in with password" })
-    );
-
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Signing in…");
-
-    password.resolve(success);
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/users"));
-  });
-
-  it("clears an email-link failure when switching account mode", async () => {
+  it("clears a password failure when switching account mode", async () => {
     const user = userEvent.setup();
     boundary.gateway = createGateway({
-      sendEmailLink: vi.fn(async () => ({
+      signInWithPassword: vi.fn(async () => ({
         ok: false as const,
-        code: "EMAIL_LINK_FAILED" as const,
+        code: "INVALID_CREDENTIALS" as const,
       })),
     });
     renderAuthForm();
 
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
+    await user.type(screen.getByLabelText("Password"), "wrong password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(screen.getAllByRole("alert")).toHaveLength(1);
 
     await user.click(
@@ -326,9 +282,6 @@ describe("AuthForm", () => {
     );
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",
       "new-password"
@@ -338,8 +291,7 @@ describe("AuthForm", () => {
   it("omits passkey action and explains when passkeys are unavailable", () => {
     browser.readiness = {
       status: "unsupported",
-      message:
-        "Passkeys are not supported in this browser. Use an email link or password.",
+      message: "Passkeys are not supported in this browser. Use a password instead.",
     };
     renderAuthForm();
 
@@ -362,15 +314,15 @@ describe("AuthForm", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("focuses callback recovery and links to a new email-link request", async () => {
+  it("focuses callback recovery and links to try creating the account again", async () => {
     renderAuthForm("/users", "auth_link_invalid");
 
     const callbackAlert = screen.getByRole("alert");
     expect(callbackAlert).toHaveTextContent(
-      "That sign-in link is invalid or expired."
+      "That confirmation link is invalid or expired."
     );
     expect(
-      screen.getByRole("link", { name: "Email me a new link" })
+      screen.getByRole("link", { name: "Try creating your account again" })
     ).toHaveAttribute("href", "#email");
     await waitFor(() => expect(callbackAlert).toHaveFocus());
   });
@@ -396,9 +348,6 @@ describe("AuthForm", () => {
     const user = userEvent.setup();
     renderAuthForm();
 
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
     expect(screen.getByLabelText("Password")).toHaveAttribute(
       "autocomplete",
       "current-password"
@@ -424,23 +373,19 @@ describe("AuthForm", () => {
     expect(navigation.replace).not.toHaveBeenCalledWith("/users");
   });
 
-  it("blocks passkey and variant actions while an email-link request is pending", async () => {
+  it("blocks passkey and variant actions while a password request is pending", async () => {
     const user = userEvent.setup();
-    const emailLink = deferred<AuthResult>();
+    const password = deferred<AuthResult>();
     const signInWithPasskey = vi.fn(async () => success);
     boundary.gateway = createGateway({
-      sendEmailLink: vi.fn(() => emailLink.promise),
+      signInWithPassword: vi.fn(() => password.promise),
       signInWithPasskey,
     });
     renderAuthForm();
 
-    await user.click(
-      screen.getByRole("button", { name: "Use password instead" })
-    );
     await user.type(screen.getByLabelText("Email"), "reader@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Email me a sign-in link" })
-    );
+    await user.type(screen.getByLabelText("Password"), "secret phrase");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
     await user.click(
       screen.getByRole("button", { name: "Sign in with a passkey" })
     );
@@ -461,11 +406,7 @@ describe("AuthForm", () => {
       screen.getByRole("button", { name: "Create an account" })
     ).toBeDisabled();
 
-    emailLink.resolve(success);
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "Sign-in link sent. Check your email."
-      )
-    );
+    password.resolve(success);
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/users"));
   });
 });

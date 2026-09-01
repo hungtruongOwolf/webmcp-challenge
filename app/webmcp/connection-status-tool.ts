@@ -6,8 +6,8 @@ export const createConnectionStatusTool = (
 ): WebMCPTool => ({
   name: "get_connection_status",
   description:
-    "Report whether this Messenger page is signed in and whether its agent tools are connected. " +
-    "Use before requesting Messenger actions. If not signed in, the result includes guidance -- " +
+    "Report whether this Verb page is signed in and whether its agent tools are connected. " +
+    "Use before requesting Verb actions. If not signed in, the result includes guidance -- " +
     "sign-in always requires the human, never click sign-in controls yourself.",
   inputSchema: {
     type: "object",
