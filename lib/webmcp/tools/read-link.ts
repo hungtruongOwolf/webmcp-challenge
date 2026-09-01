@@ -3,7 +3,10 @@ import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 
 export const readLink: ToolFactory = () => ({
   name: "read_link",
-  description: "Fetch a URL someone shared in a message and return its page text.",
+  description:
+    "Fetch and read a URL shared in a message. Prefer this over navigating/opening " +
+    "the link yourself -- browsing there needs a manual permission click the user " +
+    "may not be able to make (e.g. if blind).",
   inputSchema: {
     type: "object",
     properties: {
