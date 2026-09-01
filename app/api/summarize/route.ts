@@ -12,8 +12,9 @@ const MAX_TRANSCRIPT_CHARS = 12_000;
 const PROMPT =
   "Below is a chat transcript, oldest first. Summarize it as a coherent story from " +
   "beginning to end -- what was discussed, any plans or decisions made, and how it evolved " +
-  "over time. Write it as flowing prose (4-8 sentences), not a list of messages. If nothing " +
-  "meaningful happened, say so briefly.";
+  "over time. Write it as flowing prose (8-14 sentences, more for a longer or more eventful " +
+  "conversation), not a list of messages. Cover the individual topics/threads that came up, " +
+  "not just the overall gist. If nothing meaningful happened, say so briefly.";
 
 const generateWithOpenAI = async (prompt: string, apiKey: string) => {
   let res: Response;
