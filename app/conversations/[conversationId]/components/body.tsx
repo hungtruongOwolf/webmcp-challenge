@@ -12,6 +12,7 @@ import { avatarColors, initialsFromName } from "@/app/libs/avatar-color";
 import { createClient } from "@/app/libs/supabase/client";
 import Avatar from "@/app/components/avatar";
 import MessageReactions from "./message-reactions";
+import MessageMarkdown from "./message-markdown";
 
 const STICKER_SET = new Set<string>(STICKER_EMOJI);
 
@@ -254,7 +255,7 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                                 boxShadow: "0 0 0 0.5px var(--hair)",
                               }}
                             >
-                              {message.body}
+                              <MessageMarkdown text={message.body ?? ""} />
                             </div>
                           )}
                           <MessageReactions
