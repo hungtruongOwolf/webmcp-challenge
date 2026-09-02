@@ -16,10 +16,44 @@ alter table public.messages
   add constraint message_has_content
   check (
     deleted_at is not null
-    or body is not null
+    or nullif(btrim(body), '') is not null
     or image is not null
     or file_url is not null
   );
+
+-- edited_at is stamped here, not by the client, so an edit can neither hide
+-- itself nor be backdated, and a deleted message cannot be brought back by
+-- clearing deleted_at.
+create or replace function public.stamp_message_update()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.deleted_at is not null and new.deleted_at is null then
+    raise exception 'a deleted message cannot be restored';
+  end if;
+
+  if new.deleted_at is null and (
+       new.body      is distinct from old.body
+    or new.image     is distinct from old.image
+    or new.file_url  is distinct from old.file_url
+    or new.file_name is distinct from old.file_name
+    or new.file_size is distinct from old.file_size
+  ) then
+    new.edited_at := now();
+  else
+    new.edited_at := old.edited_at;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_message_update_stamp on public.messages;
+create trigger on_message_update_stamp
+before update on public.messages
+for each row execute function public.stamp_message_update();
 
 create policy "authors edit own messages"
 on public.messages for update to authenticated
