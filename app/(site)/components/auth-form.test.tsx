@@ -423,6 +423,45 @@ describe("AuthForm", () => {
     expect(navigation.replace).not.toHaveBeenCalledWith("/users");
   });
 
+  it("does not redirect mid-flight when currentUser flips true before the passkey ceremony even resolves", async () => {
+    const user = userEvent.setup();
+    const passkeySignup = deferred<{
+      ok: true;
+      value: { hasSession: boolean };
+    }>();
+    boundary.gateway = createGateway({
+      signUpWithPasskey: vi.fn(() => {
+        // Mirrors real Supabase timing: onAuthStateChange flips currentUser
+        // synchronously inside signUp(), well before registerPasskey() is
+        // even called, let alone before the whole gateway call settles.
+        // Reproduced live: cancelling the passkey prompt still landed on
+        // /conversations, because this redirect fired before the ceremony
+        // was even asked for.
+        session.currentUser = { id: "new-user" };
+        return passkeySignup.promise;
+      }),
+    });
+    const view = renderAuthForm();
+
+    await user.click(screen.getByRole("button", { name: "Create an account" }));
+    await user.type(screen.getByLabelText("Name"), "Ada Reader");
+    await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Sign up with a passkey" })
+    );
+
+    // Simulate the reactive currentUser effect running while the gateway
+    // call (WebAuthn ceremony + any rollback) is still in flight -- it must
+    // not redirect to the destination before that settles.
+    view.rerender(authFormTree("/users"));
+    expect(navigation.replace).not.toHaveBeenCalledWith("/users");
+
+    passkeySignup.resolve({ ok: true, value: { hasSession: true } });
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/users")
+    );
+  });
+
   it("blocks passkey and variant actions while a password request is pending", async () => {
     const user = userEvent.setup();
     const password = deferred<AuthResult>();

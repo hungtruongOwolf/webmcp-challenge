@@ -43,11 +43,18 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const destination = sanitizeAuthReturnPath(returnPath);
   // Supabase notifies onAuthStateChange (which flips currentUser here)
   // synchronously inside signUp(), before the awaited signUp() call in
-  // submitPassword even resolves back to offerPasskeyEnrollment() -- so
-  // without this flag, the effect below wins the race and replaces straight
-  // to `destination`, silently skipping the enrollment page the caller just
-  // asked for. Reproduced live: a signup-with-passkey ended up on
-  // /conversations with zero passkeys registered on the account.
+  // submitPassword/submitPasskeySignup even resolves back to this
+  // component -- so without the isPending guard below, the effect wins the
+  // race and redirects straight to `destination` mid-flight, before the
+  // passkey ceremony has even been asked for, let alone finished. Confirmed
+  // live via a database query: repeated "cancel the passkey prompt"
+  // attempts still landed on /conversations and left orphaned auth.users
+  // rows behind (soft-deleted from the local session, but the redirect
+  // itself was the primary trigger -- see the passkey signup rollback in
+  // auth-gateway.ts). skipAutoRedirectRef additionally covers the
+  // password-signup path's optional passkey-enrollment redirect, which
+  // isPending alone doesn't protect (it's already false by the time that
+  // redirect fires, one tick later in the same synchronous continuation).
   const skipAutoRedirectRef = useRef(false);
 
   const getGateway = () => {
@@ -68,8 +75,10 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   }, []);
 
   useEffect(() => {
-    if (currentUser && !skipAutoRedirectRef.current) router.replace(destination);
-  }, [currentUser, destination, router]);
+    if (currentUser && !isPending && !skipAutoRedirectRef.current) {
+      router.replace(destination);
+    }
+  }, [currentUser, isPending, destination, router]);
 
   useEffect(() => {
     if (
