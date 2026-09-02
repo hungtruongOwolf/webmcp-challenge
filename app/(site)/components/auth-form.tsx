@@ -148,6 +148,17 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     }
   };
 
+  // A session already existing (restored from cookies on this render, or
+  // just established) means the effect above is about to navigate away --
+  // render a neutral placeholder instead of the interactive sign-in
+  // options for that window, so a fast click can't start a second,
+  // pointless sign-in/passkey attempt while the redirect is in flight.
+  // isPending/passkeySignupInFlight both being false is exactly the
+  // condition the auto-redirect effect itself requires, so this mirrors
+  // it rather than introducing a second, possibly-diverging check.
+  const isRedirectingAway =
+    Boolean(currentUser) && !isPending && !passkeySignupInFlight;
+
   return (
     <div className="gm-glass2" style={cardStyle}>
       <h2
@@ -161,7 +172,11 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
         Sign in options
       </h2>
 
-      {readiness.status === "checking" ? (
+      {isRedirectingAway ? (
+        <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
+          Redirecting…
+        </p>
+      ) : readiness.status === "checking" ? (
         <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
           {readiness.message}
         </p>
