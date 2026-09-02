@@ -13,6 +13,7 @@ describe("createWebmcpTools", () => {
       "read_conversation",
       "search_messages",
       "search_people",
+      "list_people",
       "get_my_profile",
       "open_conversation",
       "start_conversation",
