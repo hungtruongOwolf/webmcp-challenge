@@ -88,6 +88,7 @@ const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
   registerPasskey: vi.fn(async () => success),
   listPasskeys: vi.fn(async () => ({ ok: true as const, value: [] })),
   deletePasskey: vi.fn(async () => success),
+  signOut: vi.fn(async () => success),
   ...overrides,
 });
 

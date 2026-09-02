@@ -62,6 +62,7 @@ const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
   registerPasskey: async () => success,
   listPasskeys: async () => ({ ok: true, value: [passkey] }),
   deletePasskey: async () => success,
+  signOut: async () => success,
   ...overrides,
 });
 

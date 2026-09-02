@@ -59,6 +59,7 @@ const createGateway = (
   registerPasskey,
   listPasskeys: async () => ({ ok: true, value: [] }),
   deletePasskey: async () => success,
+  signOut: async () => success,
 });
 
 const enrollmentTree = (gateway?: AuthGateway, returnPath = "/users") => (

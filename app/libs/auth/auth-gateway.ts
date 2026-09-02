@@ -35,6 +35,7 @@ export type AuthGateway = {
   registerPasskey(): Promise<AuthResult>;
   listPasskeys(): Promise<AuthResult<PasskeyRecord[]>>;
   deletePasskey(passkeyId: string): Promise<AuthResult>;
+  signOut(): Promise<AuthResult>;
 };
 
 type SupabaseResponse<T> =
@@ -63,6 +64,7 @@ type AuthClient = {
         passkeyId: string;
       }): Promise<SupabaseResponse<unknown>>;
     };
+    signOut(input: { scope: "global" }): Promise<{ error: unknown }>;
   };
 };
 
@@ -238,6 +240,19 @@ export const createAuthGateway = (
     }
   };
 
+  // Global scope: switching accounts on a shared device should not leave
+  // the previous person signed in on their other tabs or devices.
+  const signOut = async (): Promise<AuthResult> => {
+    try {
+      const { error } = await client.auth.signOut({ scope: "global" });
+      return error
+        ? normalizeAuthFailure(error)
+        : { ok: true, value: undefined };
+    } catch (error) {
+      return normalizeAuthFailure(error);
+    }
+  };
+
   return {
     signInWithPasskey,
     signInWithPassword,
@@ -245,6 +260,7 @@ export const createAuthGateway = (
     registerPasskey,
     listPasskeys,
     deletePasskey,
+    signOut,
   };
 };
 
