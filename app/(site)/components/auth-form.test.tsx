@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthGateway, AuthResult } from "@/app/libs/auth/auth-gateway";
 import type { PasskeyReadiness } from "@/app/libs/auth/passkey-readiness";
-import { consumeFocusAfterAuth } from "@/app/libs/auth/focus-after-auth";
+import {
+  consumeFocusAfterAuth,
+  markFocusAfterSignOut,
+} from "@/app/libs/auth/focus-after-auth";
 import { WebMCPConnectionProvider } from "@/app/webmcp/connection-provider";
 import { ConnectionStatusIndicator } from "@/app/webmcp/connection-status-indicator";
 
@@ -23,9 +26,21 @@ const browser = vi.hoisted(() => ({
   } as PasskeyReadiness,
 }));
 
+type SessionUser = {
+  id: string;
+  email?: string;
+  user_metadata?: { name?: string };
+};
+
 const session = vi.hoisted(() => ({
-  currentUser: null as { id: string } | null,
+  currentUser: null as SessionUser | null,
 }));
+
+const tony: SessionUser = {
+  id: "tony",
+  email: "tony@example.org",
+  user_metadata: { name: "Tony" },
+};
 
 const boundary = vi.hoisted(() => ({
   gateway: null as AuthGateway | null,
@@ -364,14 +379,87 @@ describe("AuthForm", () => {
     );
   });
 
-  it("replaces with the sanitized return path when a session already exists", async () => {
-    session.currentUser = { id: "signed-in-user" };
+  it("shows who is signed in instead of the form when a session already exists", async () => {
+    const user = userEvent.setup();
+    session.currentUser = tony;
     renderAuthForm("//attacker.example/private");
 
-    await waitFor(() =>
-      expect(navigation.replace).toHaveBeenCalledWith("/conversations")
+    const heading = screen.getByRole("heading", { name: "Signed in as Tony" });
+    expect(screen.getByText("tony@example.org")).toBeVisible();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign in with a passkey" })
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(heading).toHaveFocus());
+    expect(navigation.replace).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Continue as Tony" }));
+
+    expect(navigation.replace).toHaveBeenCalledWith("/conversations");
+  });
+
+  it("signs the current person out from the signed-in panel", async () => {
+    const user = userEvent.setup();
+    session.currentUser = tony;
+    renderAuthForm();
+
+    await user.click(
+      screen.getByRole("button", { name: "Sign out and use a different account" })
     );
-    expect(navigation.replace).not.toHaveBeenCalledWith("/users");
+
+    expect(boundary.gateway?.signOut).toHaveBeenCalledOnce();
+    expect(navigation.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("focuses the email field and announces it after a sign-out handoff", async () => {
+    markFocusAfterSignOut();
+    renderAuthForm();
+
+    await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Signed out. Sign in or create a different account."
+    );
+  });
+
+  it("waits for the readiness check before focusing the email field after sign-out", async () => {
+    markFocusAfterSignOut();
+    browser.readiness = {
+      status: "checking",
+      message: "Checking passkey support…",
+    };
+    const view = renderAuthForm();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+
+    browser.readiness = {
+      status: "ready",
+      message: "Passkeys are available.",
+    };
+    view.rerender(authFormTree());
+
+    await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
+  });
+
+  it("replaces the form with an opening status once sign-in here succeeds", async () => {
+    const user = userEvent.setup();
+    const view = renderAuthForm();
+
+    await user.type(screen.getByLabelText("Email"), "mom@example.org");
+    await user.type(screen.getByLabelText("Password"), "secret phrase");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/users"));
+
+    session.currentUser = {
+      id: "mom",
+      email: "mom@example.org",
+      user_metadata: { name: "Mom" },
+    };
+    view.rerender(authFormTree());
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue as Mom" })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Signed in as Mom. Opening your chats.")).toBeVisible();
   });
 
   it("blocks passkey and variant actions while a password request is pending", async () => {
