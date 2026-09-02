@@ -10,7 +10,7 @@
 A blind or low-vision user can ask an AI agent to find, read, summarize, draft,
 send, react, and navigate without making the agent guess where to click.
 
-[Open the live app](https://messenger-clone-kappa-smoky.vercel.app) ·
+[Open the live app](https://verb-webmcp.vercel.app) ·
 [View the public repository](https://github.com/hungtruongOwolf/webmcp-challenge) ·
 **Demo video: coming soon**
 
@@ -23,7 +23,7 @@ send, react, and navigate without making the agent guess where to click.
 
 | Requirement | Link or status |
 |---|---|
-| Working application | [messenger-clone-kappa-smoky.vercel.app](https://messenger-clone-kappa-smoky.vercel.app) |
+| Working application | [verb-webmcp.vercel.app](https://verb-webmcp.vercel.app) |
 | Demo video | **Coming soon** — public YouTube link will be added here |
 | Public source code | [github.com/hungtruongOwolf/webmcp-challenge](https://github.com/hungtruongOwolf/webmcp-challenge) |
 | Open-source license | [MIT License](LICENSE) |
@@ -31,7 +31,7 @@ send, react, and navigate without making the agent guess where to click.
 
 ## Judge quick start
 
-1. Open the [live app](https://messenger-clone-kappa-smoky.vercel.app) in
+1. Open the [live app](https://verb-webmcp.vercel.app) in
    ChatGPT's in-app browser, or in Google Chrome 149+ with
    `chrome://flags/#enable-webmcp-testing` enabled.
 2. Sign in or create an account. If judging credentials are supplied with the
@@ -99,17 +99,20 @@ retain control; agents combine explicit tools to carry it out.
   seen state, and sidebar updates
 - Private image and file attachments backed by signed URLs
 - Message search, reactions, and 20 emoji stickers
+- Message editing and unsend (soft delete), with live updates for every
+  participant
 - Per-conversation drafts that persist when the user navigates away
 - AI summaries that combine read and unread history into one coherent recap
 - AI image descriptions for blind and low-vision users
-- Passkey and password authentication
+- Passkey and password authentication, including a passkey-only sign-up
+  that never shows or asks for a password
 - Keyboard and screen-reader-conscious authentication and navigation
 
 ## WebMCP implementation
 
 Verb uses the browser's `document.modelContext` API directly. A public
 `get_connection_status` tool is available before authentication. After sign-in,
-the connection provider registers 18 session-scoped tools and removes them with
+the connection provider registers 21 session-scoped tools and removes them with
 an `AbortSignal` when the session changes.
 
 The real registration lifecycle lives in
@@ -161,8 +164,8 @@ Small, structured result returns to the agent and activity panel
 
 ### Registered tools
 
-There are **19 registered tools in an authenticated session**: one public
-connection tool plus 18 messaging tools.
+There are **22 registered tools in an authenticated session**: one public
+connection tool plus 21 messaging tools.
 
 | Category | Tool | Purpose |
 |---|---|---|
@@ -172,9 +175,12 @@ connection tool plus 18 messaging tools.
 | Discover | `search_messages` | Search a conversation with an optional date range |
 | Discover | `search_people` | Find a person by name or email |
 | Discover | `get_my_profile` | Return the signed-in user's profile |
-| Navigate | `open_conversation` | Open or start a one-to-one conversation |
-| Compose | `draft_message` | Save a draft without sending it |
+| Navigate | `open_conversation` | Open an existing one-to-one conversation (read-only) |
+| Navigate | `start_conversation` | Start a new one-to-one conversation |
+| Compose | `draft_message` | Save a draft without sending it; calling it again edits the draft |
 | Compose | `send_message` | Send the currently saved draft |
+| Compose | `edit_message` | Change the text of a message already sent |
+| Compose | `delete_message` | Unsend a message after explicit confirmation |
 | Compose | `react_to_message` | Add or remove one of six reactions |
 | Compose | `send_sticker` | Send one of 20 emoji stickers |
 | Organize | `create_group` | Create a group from names, emails, or IDs |
@@ -200,8 +206,8 @@ Verb treats the application and database as the authority, not the agent.
 - **Bounded output:** shared result clamping keeps tool responses within a
   1,500-character budget.
 - **Deliberate writes:** sending uses a draft-then-send pattern. Leaving or
-  deleting a conversation requires a second call with `confirm: true` after
-  the user agrees.
+  deleting a conversation, and unsending a message, require a second call
+  with `confirm: true` after the user agrees.
 - **Lifecycle cleanup:** registration uses abort signals so tools from an old
   or signed-out session do not remain active.
 
