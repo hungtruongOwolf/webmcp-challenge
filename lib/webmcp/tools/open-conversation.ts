@@ -4,23 +4,48 @@ import { textResult, errorResult } from "@/lib/webmcp/budget";
 export const openConversation: ToolFactory = (ctx) => ({
   name: "open_conversation",
   description:
-    "Open an existing private 1:1 chat with one person. Read-only -- never creates one. If " +
-    "none exists yet, call start_conversation instead.",
+    "Open an existing conversation, read-only -- never creates one. Pass conversation_id for " +
+    "a specific chat (works for groups too), or user_id to look up an existing 1:1 by person. " +
+    "If none exists yet for a 1:1, call start_conversation instead.",
   inputSchema: {
     type: "object",
     properties: {
+      conversation_id: {
+        type: "string",
+        description: "A conversation id, from list_conversations. Works for groups too.",
+      },
       user_id: {
         type: "string",
-        description: "The other person's id, from search_people.",
+        description: "The other person's id, from search_people -- looks up an existing 1:1.",
       },
     },
-    required: ["user_id"],
+    required: [],
     additionalProperties: false,
   },
   annotations: { readOnlyHint: true },
   execute: async (input) => {
+    const conversationId = String(input.conversation_id || "");
     const userId = String(input.user_id || "");
-    if (!userId) return errorResult("user_id is required.");
+
+    if (!conversationId && !userId) {
+      return errorResult("Pass conversation_id or user_id.");
+    }
+
+    if (conversationId) {
+      const { data, error } = await ctx.supabase
+        .from("conversations")
+        .select("id")
+        .eq("id", conversationId)
+        .maybeSingle();
+
+      if (error) return errorResult(`Could not look up the conversation: ${error.message}`);
+      if (!data) return errorResult("No conversation found with that id.");
+
+      ctx.navigate(`/conversations/${data.id}`);
+      return textResult(
+        `Opened (id: ${data.id}). To send a message, call draft_message then send_message with this id.`
+      );
+    }
 
     // Mirrors create_conversation()'s own direct_key derivation (least/greatest
     // of the two member ids) so this stays a pure lookup with no write path.

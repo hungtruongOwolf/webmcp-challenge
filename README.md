@@ -179,7 +179,7 @@ connection tool plus 21 messaging tools.
 | Discover | `search_messages` | Search a conversation with an optional date range |
 | Discover | `search_people` | Find a person by name or email |
 | Discover | `get_my_profile` | Return the signed-in user's profile |
-| Navigate | `open_conversation` | Open an existing one-to-one conversation (read-only) |
+| Navigate | `open_conversation` | Open an existing conversation by id, or an existing 1:1 by person (read-only) |
 | Navigate | `start_conversation` | Start a new one-to-one conversation |
 | Compose | `draft_message` | Save a draft without sending it; calling it again edits the draft |
 | Compose | `send_message` | Send the currently saved draft |

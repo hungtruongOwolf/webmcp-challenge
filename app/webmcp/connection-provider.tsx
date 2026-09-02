@@ -95,6 +95,19 @@ export const WebMCPConnectionProvider = ({
   const [message, setMessage] = useState(() => connectionMessage(initialState));
   const [registrationAttempt, setRegistrationAttempt] = useState(0);
   const [authenticatedTools, setAuthenticatedTools] = useState<WebMCPTool[]>([]);
+  const authenticatedToolsRef = useRef<WebMCPTool[]>(authenticatedTools);
+  // Defense in depth alongside webmcp-tools.tsx's own fix for the same bug
+  // (keeping `router` out of that file's useMemo deps so the tools array
+  // itself doesn't get rebuilt on navigation): even if some other future
+  // caller of replaceAuthenticatedTools ever passes a new array containing
+  // the exact same tool names, the registration effect below only depends
+  // on this joined-name signature, not the array reference -- so a same-
+  // names-different-array update still won't trigger a full abort/
+  // re-register cycle the agent isn't told about.
+  const authenticatedToolsSignature = useMemo(
+    () => authenticatedTools.map((tool) => tool.name).sort().join(","),
+    [authenticatedTools]
+  );
   const stateRef = useRef(state);
   const pathnameRef = useRef(pathname);
   const snapshotRef = useRef<ConnectionSnapshot>(
@@ -109,6 +122,7 @@ export const WebMCPConnectionProvider = ({
   stateRef.current = state;
   pathnameRef.current = pathname;
   snapshotRef.current = snapshotFor(state, pathname);
+  authenticatedToolsRef.current = authenticatedTools;
 
   const transition = useCallback((event: ConnectionEvent) => {
     const nextState = connectionReducer(stateRef.current, event);
@@ -225,7 +239,7 @@ export const WebMCPConnectionProvider = ({
         );
         const tools = [
           ...registryTools,
-          ...authenticatedTools.filter(
+          ...authenticatedToolsRef.current.filter(
             (tool) => !registryToolNames.has(tool.name)
           ),
         ].map((tool) => ({
@@ -277,7 +291,7 @@ export const WebMCPConnectionProvider = ({
     };
   }, [
     currentUserId,
-    authenticatedTools,
+    authenticatedToolsSignature,
     modelContext,
     registrationAttempt,
     registry,
