@@ -23,6 +23,7 @@ vi.mock("@/app/context/current-user-context", () => ({
 }));
 
 const broadcastHandlers = vi.hoisted(() => ({ current: [] as Array<(msg: unknown) => void> }));
+const statusHandlers = vi.hoisted(() => ({ current: [] as Array<(status: string) => void> }));
 const openConversationId = vi.hoisted(() => ({ current: undefined as string | undefined }));
 
 vi.mock("@/app/libs/supabase/client", () => ({
@@ -35,7 +36,9 @@ vi.mock("@/app/libs/supabase/client", () => ({
       ) => {
         broadcastHandlers.current.push(handler);
         return {
-          subscribe: () => undefined,
+          subscribe: (onStatus?: (status: string) => void) => {
+            if (onStatus) statusHandlers.current.push(onStatus);
+          },
         };
       },
     }),
@@ -70,8 +73,16 @@ const makeConversation = (id: string): FullConversationType =>
     messages: [],
   }) as unknown as FullConversationType;
 
+const inboxAccess = {
+  current: null as Pick<
+    ReturnType<typeof useConversationsList>,
+    "subscribeToInbox" | "isInboxLive"
+  > | null,
+};
+
 const Consumer = () => {
-  const { newMessageAnnouncement } = useConversationsList();
+  const { newMessageAnnouncement, subscribeToInbox, isInboxLive } = useConversationsList();
+  inboxAccess.current = { subscribeToInbox, isInboxLive };
   return <div data-testid="announcement">{newMessageAnnouncement}</div>;
 };
 
@@ -88,9 +99,54 @@ const emitBroadcast = (payload: unknown) => {
   });
 };
 
+const emitStatus = (status: string) => {
+  act(() => {
+    statusHandlers.current.forEach((handler) => handler(status));
+  });
+};
+
+describe("ConversationsProvider inbox feed", () => {
+  beforeEach(() => {
+    broadcastHandlers.current = [];
+    statusHandlers.current = [];
+    inboxAccess.current = null;
+    openConversationId.current = undefined;
+  });
+
+  it("shares its own inbox channel with tools instead of letting them open one", () => {
+    renderProvider([makeConversation("convo-a")]);
+    const received: unknown[] = [];
+    const unsubscribe = inboxAccess.current!.subscribeToInbox((event) => received.push(event));
+
+    expect(inboxAccess.current!.isInboxLive()).toBe(false);
+    emitStatus("SUBSCRIBED");
+    expect(inboxAccess.current!.isInboxLive()).toBe(true);
+
+    const payload = {
+      table: "messages",
+      operation: "INSERT",
+      record: { conversation_id: "convo-a", sender_id: "other", body: "hi" },
+    };
+    emitBroadcast(payload);
+    emitStatus("CHANNEL_ERROR");
+
+    expect(received).toEqual([
+      { type: "status", live: true },
+      { type: "broadcast", payload },
+      { type: "status", live: false },
+    ]);
+    expect(inboxAccess.current!.isInboxLive()).toBe(false);
+
+    unsubscribe();
+    emitBroadcast(payload);
+    expect(received).toHaveLength(3);
+  });
+});
+
 describe("ConversationsProvider new-message announcement", () => {
   beforeEach(() => {
     broadcastHandlers.current = [];
+    statusHandlers.current = [];
     openConversationId.current = undefined;
   });
 

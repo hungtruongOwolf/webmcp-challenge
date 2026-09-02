@@ -30,15 +30,13 @@ describe("wait_for_new_messages", () => {
     const fake = createFakeSupabase({
       results: { profiles: [{ data: [{ id: "other-id", name: "Maya" }] }] },
     });
-    const { ctx } = createFakeContext(fake.client);
+    const { ctx, inbox } = createFakeContext(fake.client);
+    inbox.setLive(true);
     const tool = waitForNewMessages(ctx);
 
     const pending = tool.execute({ timeout_seconds: 30 });
     await vi.advanceTimersByTimeAsync(0);
-    const [channel] = fake.channels;
-    channel.setStatus("SUBSCRIBED");
-    await vi.advanceTimersByTimeAsync(0);
-    channel.broadcast(incoming());
+    inbox.publish(incoming());
     const result = await pending;
 
     expect(tool.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: true });
@@ -46,37 +44,61 @@ describe("wait_for_new_messages", () => {
     expect(resultText(result)).toContain("Maya");
     expect(resultText(result)).toContain("are you there?");
     expect(resultText(result)).toContain("conv-1");
-    expect(fake.removedChannels).toEqual([channel]);
+    expect(fake.channels).toEqual([]);
+    expect(inbox.listenerCount()).toBe(0);
   });
 
-  it("ignores my own messages and other conversations, then reports a timeout", async () => {
+  it("never opens or removes the sidebar's inbox channel", async () => {
+    const fake = createFakeSupabase({
+      results: { profiles: [{ data: [{ id: "other-id", name: "Maya" }] }] },
+    });
+    const { ctx, inbox } = createFakeContext(fake.client);
+    inbox.setLive(true);
+    const sidebar = fake.client.channel("user:me-id");
+    const tool = waitForNewMessages(ctx);
+
+    const timedOut = tool.execute({ timeout_seconds: 5 });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(resultText(await timedOut)).toContain("timedOut: true");
+
+    const answered = tool.execute({ timeout_seconds: 5 });
+    await vi.advanceTimersByTimeAsync(0);
+    inbox.publish(incoming());
+    expect(resultText(await answered)).toContain("timedOut: false");
+
+    expect(fake.channels).toEqual([sidebar]);
+    expect(fake.removedChannels).toEqual([]);
+    expect(fake.client.channel("user:me-id")).toBe(sidebar);
+  });
+
+  it("ignores my own messages, other conversations, and non-inserts, then reports a timeout", async () => {
     const fake = createFakeSupabase();
-    const { ctx } = createFakeContext(fake.client);
+    const { ctx, inbox } = createFakeContext(fake.client);
+    inbox.setLive(true);
 
     const pending = waitForNewMessages(ctx).execute({
       conversation_id: "conv-1",
       timeout_seconds: 5,
     });
     await vi.advanceTimersByTimeAsync(0);
-    const [channel] = fake.channels;
-    channel.setStatus("SUBSCRIBED");
-    channel.broadcast(incoming({ sender_id: "me-id" }));
-    channel.broadcast(incoming({ conversation_id: "conv-2" }));
+    inbox.publish(incoming({ sender_id: "me-id" }));
+    inbox.publish(incoming({ conversation_id: "conv-2" }));
+    inbox.publish({ ...incoming(), operation: "UPDATE" });
+    inbox.publish({ ...incoming(), old_record: { id: "msg-1" } });
     await vi.advanceTimersByTimeAsync(5_000);
     const result = await pending;
 
     expect(result.isError).toBeUndefined();
     expect(resultText(result)).toContain("timedOut: true");
-    expect(fake.removedChannels).toEqual([channel]);
+    expect(inbox.listenerCount()).toBe(0);
   });
 
   it("caps the wait at 60 seconds", async () => {
     const fake = createFakeSupabase();
-    const { ctx } = createFakeContext(fake.client);
+    const { ctx, inbox } = createFakeContext(fake.client);
+    inbox.setLive(true);
 
     const pending = waitForNewMessages(ctx).execute({ timeout_seconds: 500 });
-    await vi.advanceTimersByTimeAsync(0);
-    fake.channels[0].setStatus("SUBSCRIBED");
     await vi.advanceTimersByTimeAsync(60_000);
     const result = await pending;
 
@@ -84,7 +106,7 @@ describe("wait_for_new_messages", () => {
     expect(resultText(result)).toContain("60 seconds");
   });
 
-  it("falls back to polling every 2 seconds when realtime is unavailable", async () => {
+  it("falls back to polling every 2 seconds when the inbox channel is not live", async () => {
     const fake = createFakeSupabase({
       results: {
         messages: [{ data: [] }, { data: [incoming().record] }],
@@ -94,13 +116,33 @@ describe("wait_for_new_messages", () => {
     const { ctx } = createFakeContext(fake.client);
 
     const pending = waitForNewMessages(ctx).execute({ timeout_seconds: 30 });
-    await vi.advanceTimersByTimeAsync(0);
-    fake.channels[0].setStatus("CHANNEL_ERROR");
     await vi.advanceTimersByTimeAsync(4_000);
     const result = await pending;
 
     expect(resultText(result)).toContain("are you there?");
     expect(fake.queries.filter((q) => q.table === "messages")).toHaveLength(2);
     expect(fake.opsFor("messages")).toContainEqual(["neq", ["sender_id", "me-id"]]);
+    expect(fake.channels).toEqual([]);
+  });
+
+  it("starts polling when the inbox channel drops mid-wait", async () => {
+    const fake = createFakeSupabase({
+      results: {
+        messages: [{ data: [incoming().record] }],
+        profiles: [{ data: [{ id: "other-id", name: "Maya" }] }],
+      },
+    });
+    const { ctx, inbox } = createFakeContext(fake.client);
+    inbox.setLive(true);
+
+    const pending = waitForNewMessages(ctx).execute({ timeout_seconds: 30 });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fake.queries).toHaveLength(0);
+
+    inbox.setLive(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const result = await pending;
+
+    expect(resultText(result)).toContain("are you there?");
   });
 });

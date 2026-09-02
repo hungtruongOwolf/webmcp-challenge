@@ -1,6 +1,11 @@
 import type { User } from "@supabase/supabase-js";
 
-import type { SupabaseBrowserClient, ToolContext } from "@/lib/webmcp/types";
+import type {
+  InboxEvent,
+  InboxListener,
+  SupabaseBrowserClient,
+  ToolContext,
+} from "@/lib/webmcp/types";
 
 export type FakeResult = { data?: unknown; error?: { message: string } | null };
 
@@ -83,7 +88,11 @@ export function createFakeSupabase(options: {
       return { data: null, error: null, ...(options.rpc?.(name, args) ?? {}) };
     },
     storage: options.storage,
+    // realtime-js hands back the channel it already holds for a topic, so a
+    // second caller silently shares (and can tear down) the first one's.
     channel: (topic: string) => {
+      const existing = channels.find((c) => c.topic === topic);
+      if (existing) return existing;
       const channel = createFakeChannel(topic);
       channels.push(channel);
       return channel;
@@ -109,20 +118,46 @@ export function createFakeSupabase(options: {
 export const fakeUser = (id = "me-id"): User =>
   ({ id, email: "me@example.org", user_metadata: { name: "Me" } }) as unknown as User;
 
+/** Stands in for the sidebar's inbox feed: tests flip liveness and push events. */
+export function createFakeInbox() {
+  const listeners = new Set<InboxListener>();
+  let live = false;
+  const emit = (event: InboxEvent) => listeners.forEach((listener) => listener(event));
+
+  return {
+    subscribeToInbox: (listener: InboxListener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    isInboxLive: () => live,
+    setLive: (next: boolean) => {
+      live = next;
+      emit({ type: "status", live: next });
+    },
+    publish: (payload: Record<string, unknown>) => emit({ type: "broadcast", payload }),
+    listenerCount: () => listeners.size,
+  };
+}
+
 export function createFakeContext(
   supabase: SupabaseBrowserClient,
   overrides: Partial<ToolContext> = {}
 ) {
   const navigated: string[] = [];
+  const inbox = createFakeInbox();
   const ctx: ToolContext = {
     supabase,
     currentUser: fakeUser(),
     navigate: (href) => navigated.push(href),
     requestConfirmation: async () => true,
     onlineUserIds: () => [],
+    subscribeToInbox: inbox.subscribeToInbox,
+    isInboxLive: inbox.isInboxLive,
     ...overrides,
   };
-  return { ctx, navigated };
+  return { ctx, navigated, inbox };
 }
 
 export const resultText = (result: ModelContextToolResult) => result.content[0].text;
