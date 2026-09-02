@@ -79,7 +79,7 @@ export const readConversation: ToolFactory = (ctx) => ({
             : `${m.body || ""}${m.edited_at ? " (edited)" : ""}`;
 
       const byEmoji = new Map<string, string[]>();
-      for (const r of m.reactions ?? []) {
+      for (const r of m.deleted_at ? [] : m.reactions ?? []) {
         const name = r.user?.name || "Someone";
         if (!byEmoji.has(r.emoji)) byEmoji.set(r.emoji, []);
         byEmoji.get(r.emoji)!.push(name);

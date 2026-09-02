@@ -167,6 +167,19 @@ const generateBootstrapPassword = (): string => {
 let passkeyProvisioningCount = 0;
 const passkeyProvisioningListeners = new Set<() => void>();
 
+/**
+ * Every createAuthGateway() instance shares one underlying Supabase
+ * client/session (see the comment above), so two signUpWithPasskey()
+ * calls overlapping in the same tab could otherwise interleave: the
+ * passkey ceremony "for" one email could end up enrolling against
+ * whichever session happens to be active by the time registerPasskey()
+ * runs, which might by then belong to the other call's user. Queuing the
+ * whole signUp -> ceremony -> rollback sequence on this module-scope
+ * promise makes overlapping calls run strictly one at a time, so the
+ * active session can never be swapped out from under one in progress.
+ */
+let passkeySignupQueue: Promise<unknown> = Promise.resolve();
+
 const notifyPasskeyProvisioningListeners = () => {
   for (const listener of passkeyProvisioningListeners) listener();
 };
@@ -283,62 +296,76 @@ export const createAuthGateway = (
     }
   };
 
-  const signUpWithPasskey: AuthGateway["signUpWithPasskey"] = async ({
+  const signUpWithPasskey: AuthGateway["signUpWithPasskey"] = ({
     email,
     name,
     returnPath,
   }) => {
+    // Incremented synchronously, before any queuing/awaiting -- callers
+    // (AuthForm's redirect guard) need isPasskeySignupInFlight() to read
+    // true the instant this is called, not one microtask later once the
+    // queue happens to schedule this call's work.
     passkeyProvisioningCount += 1;
     notifyPasskeyProvisioningListeners();
-    try {
-      const signUpResult = await performSignUp(
-        email,
-        generateBootstrapPassword(),
-        name,
-        returnPath,
-        // Marks this row as a passkey bootstrap still pending enrollment, so
-        // the server-side sweep (cleanup_abandoned_passkey_signups(), for
-        // when the user closes the tab or loses network mid-ceremony instead
-        // of hitting the client-side rollback below) can tell it apart from
-        // a real password-signup account that just hasn't done anything yet
-        // -- those never carry this flag and are never eligible.
-        { passkey_bootstrap: true }
-      );
-      if (!signUpResult.ok || !signUpResult.value.hasSession) {
-        return signUpResult;
-      }
 
-      // The whole point of this path is a passkey -- a session bootstrapped
-      // with a random password nobody knows, but with no passkey enrolled,
-      // is a dead end the user can never sign back into. If the ceremony
-      // fails or is cancelled, roll back completely rather than leave them
-      // stranded in that half-created state.
-      const passkeyResult = await registerPasskey();
-      if (passkeyResult.ok) return signUpResult;
+    const run = async (): Promise<AuthResult<{ hasSession: boolean }>> => {
+      try {
+        const signUpResult = await performSignUp(
+          email,
+          generateBootstrapPassword(),
+          name,
+          returnPath,
+          // Marks this row as a passkey bootstrap still pending enrollment, so
+          // the server-side sweep (cleanup_abandoned_passkey_signups(), for
+          // when the user closes the tab or loses network mid-ceremony instead
+          // of hitting the client-side rollback below) can tell it apart from
+          // a real password-signup account that just hasn't done anything yet
+          // -- those never carry this flag and are never eligible.
+          { passkey_bootstrap: true }
+        );
+        if (!signUpResult.ok || !signUpResult.value.hasSession) {
+          return signUpResult;
+        }
 
-      // Signing out alone only drops the local session -- the auth.users row
-      // itself would still exist, permanently blocking this email with
-      // user_already_exists on the next attempt. delete_unenrolled_passkey_
-      // signup() (a narrowly-scoped RPC, since the anon client has no
-      // self-delete and the service-role key isn't available here) removes
-      // the row itself while the session can still identify it -- must run
-      // before sign-out, not after.
-      try {
-        await client.rpc("delete_unenrolled_passkey_signup");
-      } catch {
-        // Best-effort: surfacing the real passkey failure below matters more
-        // than a cleanup call that couldn't complete.
+        // The whole point of this path is a passkey -- a session bootstrapped
+        // with a random password nobody knows, but with no passkey enrolled,
+        // is a dead end the user can never sign back into. If the ceremony
+        // fails or is cancelled, roll back completely rather than leave them
+        // stranded in that half-created state.
+        const passkeyResult = await registerPasskey();
+        if (passkeyResult.ok) return signUpResult;
+
+        // Signing out alone only drops the local session -- the auth.users row
+        // itself would still exist, permanently blocking this email with
+        // user_already_exists on the next attempt. delete_unenrolled_passkey_
+        // signup() (a narrowly-scoped RPC, since the anon client has no
+        // self-delete and the service-role key isn't available here) removes
+        // the row itself while the session can still identify it -- must run
+        // before sign-out, not after.
+        try {
+          await client.rpc("delete_unenrolled_passkey_signup");
+        } catch {
+          // Best-effort: surfacing the real passkey failure below matters more
+          // than a cleanup call that couldn't complete.
+        }
+        try {
+          await client.auth.signOut({ scope: "local" });
+        } catch {
+          // Same reasoning.
+        }
+        return passkeyResult;
+      } finally {
+        passkeyProvisioningCount -= 1;
+        notifyPasskeyProvisioningListeners();
       }
-      try {
-        await client.auth.signOut({ scope: "local" });
-      } catch {
-        // Same reasoning.
-      }
-      return passkeyResult;
-    } finally {
-      passkeyProvisioningCount -= 1;
-      notifyPasskeyProvisioningListeners();
-    }
+    };
+
+    const result = passkeySignupQueue.then(run, run);
+    // Every queued run resolves (never rejects) its own AuthResult, so this
+    // is just defensive -- keeps a hypothetical unexpected rejection from
+    // ever poisoning the queue for the next caller.
+    passkeySignupQueue = result.catch(() => undefined);
+    return result;
   };
 
   const listPasskeys = async (): Promise<AuthResult<PasskeyRecord[]>> => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { find } from "lodash";
 import type { Conversation, User } from "@/app/types";
@@ -21,14 +21,30 @@ type ThreadProps = {
 
 const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
   const [messages, setMessages] = useState(initialMessages);
+  const [members, setMembers] = useState<User[]>(conversation.users);
+  const membersRef = useRef(members);
   const [drawer, setDrawer] = useState<"media" | "people" | "settings" | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const { conversationId } = useConversation();
 
   useEffect(() => {
+    membersRef.current = members;
+  }, [members]);
+
+  useEffect(() => {
     setMessages(initialMessages);
-  }, [conversationId, initialMessages]);
+    setMembers(conversation.users);
+    // Only re-syncs on navigation to a (possibly different) conversation --
+    // this conversation's own realtime channel below is the source of
+    // truth for messages/members from then on. Re-running this on every
+    // background initialMessages/conversation.users prop update (which
+    // ConversationsContext's sidebar refetch produces on every message,
+    // redundantly with what the channel below already applied) was
+    // clobbering local state with an equivalent copy on every message --
+    // harmless, but a source of avoidable re-render flicker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
 
   useEffect(() => {
     axios.post(`/api/conversations/${conversationId}/seen`);
@@ -40,7 +56,7 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
       config: { private: true },
     });
 
-    const findUser = (id: string) => conversation.users.find((u) => u.id === id);
+    const findUser = (id: string) => membersRef.current.find((u) => u.id === id);
 
     channel
       .on("broadcast", { event: "*" }, ({ payload }) => {
@@ -106,6 +122,11 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
               };
             })
           );
+        } else if (table === "conversation_members" && payload.operation === "DELETE") {
+          const removedId = payload.old_record?.user_id;
+          if (!removedId) return;
+
+          setMembers((current) => current.filter((u) => u.id !== removedId));
         }
       })
       .subscribe();
@@ -115,6 +136,8 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
+
+  const liveConversation = { ...conversation, users: members };
 
   return (
     <main
@@ -128,7 +151,7 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
       }}
     >
       <Header
-        conversation={conversation}
+        conversation={liveConversation}
         onOpenMedia={() => setDrawer(drawer === "media" ? null : "media")}
         onOpenInfo={() => setDrawer(drawer === "people" ? null : "people")}
       />
@@ -136,7 +159,7 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
       <Form />
 
       <ProfileDrawer
-        conversation={conversation}
+        conversation={liveConversation}
         messages={messages}
         tab={drawer}
         onClose={() => setDrawer(null)}
