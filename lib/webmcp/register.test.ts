@@ -20,6 +20,8 @@ describe("createWebmcpTools", () => {
       "create_group",
       "draft_message",
       "send_message",
+      "send_attachment",
+      "forward_message",
       "delete_conversation",
       "describe_image",
       "read_file",
