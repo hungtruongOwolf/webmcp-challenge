@@ -4,8 +4,11 @@ import { createClient } from "@/app/libs/supabase/server";
 import { safeFetch } from "@/app/libs/safe-fetch";
 import {
   AttachmentError,
+  assertWithinLimit,
   copyMessageAttachment,
   createMessageArgs,
+  readBodyWithinLimit,
+  requireAttachmentTarget,
   storeFetchedAttachment,
 } from "@/app/libs/supabase/attachments";
 import type { StoredAttachment } from "@/app/libs/supabase/attachments";
@@ -63,11 +66,19 @@ export async function POST(req: Request) {
     if (url) {
       const res = await safeFetch(url);
       if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
         return new NextResponse(`Could not fetch that URL (status ${res.status}).`, { status: 502 });
       }
+
+      // Type and declared size are checked before a single body byte is read.
+      const contentType = res.headers.get("content-type") || "";
+      const { kind } = requireAttachmentTarget(contentType);
+      const declared = Number(res.headers.get("content-length"));
+      if (Number.isFinite(declared) && declared > 0) assertWithinLimit(kind, declared);
+
       stored = await storeFetchedAttachment(supabase, {
-        bytes: new Uint8Array(await res.arrayBuffer()),
-        contentType: res.headers.get("content-type") || "",
+        bytes: await readBodyWithinLimit(res.body, kind),
+        contentType,
         name: nameFromUrl(url),
         conversationId,
         userId: user.id,

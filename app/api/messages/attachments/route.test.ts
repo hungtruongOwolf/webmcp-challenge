@@ -130,7 +130,7 @@ describe("POST /api/messages/attachments", () => {
         controller.enqueue(new Uint8Array(16));
         if (pulled === 4) controller.close();
       },
-    });
+    }, { highWaterMark: 0 });
     vi.mocked(safeFetch).mockResolvedValue(
       new Response(body, {
         status: 200,
@@ -153,7 +153,7 @@ describe("POST /api/messages/attachments", () => {
         controller.enqueue(new Uint8Array(16));
         if (pulled === 4) controller.close();
       },
-    });
+    }, { highWaterMark: 0 });
     vi.mocked(safeFetch).mockResolvedValue(
       new Response(body, { status: 200, headers: { "content-type": "text/html" } })
     );

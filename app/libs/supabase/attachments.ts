@@ -120,6 +120,72 @@ async function sign(
   return { url: data.signedUrl, remove };
 }
 
+/** classifyAttachment, but phrased as the refusal the route sends back. */
+export function requireAttachmentTarget(contentType: string) {
+  const target = classifyAttachment(contentType);
+  if (!target) {
+    throw new AttachmentError(
+      `${contentType || "unknown"} is not accepted. Images: ${IMAGE_TYPES.join(", ")}. Files: ${FILE_TYPES.join(", ")}.`,
+      415
+    );
+  }
+  return target;
+}
+
+export const attachmentLimit = (kind: AttachmentKind) =>
+  kind === "image" ? MAX_IMAGE_BYTES : MAX_FILE_BYTES;
+
+const formatMb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`;
+
+export function assertWithinLimit(kind: AttachmentKind, byteLength: number) {
+  const limit = attachmentLimit(kind);
+  if (byteLength > limit) {
+    throw new AttachmentError(
+      `That ${kind} is ${formatMb(byteLength)}; the limit is ${formatMb(limit)}.`,
+      413
+    );
+  }
+}
+
+/**
+ * Reads a fetched body with a running byte count and gives up as soon as it
+ * passes the cap, so a remote host cannot make this server buffer gigabytes
+ * before the size check runs.
+ */
+export async function readBodyWithinLimit(
+  body: ReadableStream<Uint8Array> | null,
+  kind: AttachmentKind
+): Promise<Uint8Array> {
+  if (!body) return new Uint8Array(0);
+
+  const limit = attachmentLimit(kind);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) {
+        await reader.cancel().catch(() => {});
+        throw new AttachmentError(`That ${kind} is over the ${formatMb(limit)} limit.`, 413);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 /** Uploads bytes fetched server side into the target conversation's folder. */
 export async function storeFetchedAttachment(
   supabase: Client,
@@ -131,21 +197,8 @@ export async function storeFetchedAttachment(
     userId: string;
   }
 ): Promise<StoredAttachment> {
-  const target = classifyAttachment(input.contentType);
-  if (!target) {
-    throw new AttachmentError(
-      `${input.contentType || "unknown"} is not accepted. Images: ${IMAGE_TYPES.join(", ")}. Files: ${FILE_TYPES.join(", ")}.`,
-      415
-    );
-  }
-
-  const limit = target.kind === "image" ? MAX_IMAGE_BYTES : MAX_FILE_BYTES;
-  if (input.bytes.byteLength > limit) {
-    throw new AttachmentError(
-      `That ${target.kind} is ${Math.round(input.bytes.byteLength / (1024 * 1024))} MB; the limit is ${Math.round(limit / (1024 * 1024))} MB.`,
-      413
-    );
-  }
+  const target = requireAttachmentTarget(input.contentType);
+  assertWithinLimit(target.kind, input.bytes.byteLength);
 
   const name = input.name || `attachment.${extensionFor("", input.contentType)}`;
   const path = objectPath(target.kind, input.conversationId, input.userId, name, extensionFor(name, input.contentType));
