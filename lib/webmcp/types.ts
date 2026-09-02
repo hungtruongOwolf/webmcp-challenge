@@ -17,6 +17,8 @@ export type ToolContext = {
   navigate: (href: string) => void;
   /** Opens the app's own confirm dialog and resolves once the user answers. */
   requestConfirmation: (request: ConfirmRequest) => Promise<boolean>;
+  /** Ids currently tracked on the presence channel; the app's own online dots. */
+  onlineUserIds: () => string[];
 };
 
 export type ToolStatus = "success" | "error" | "cancelled";

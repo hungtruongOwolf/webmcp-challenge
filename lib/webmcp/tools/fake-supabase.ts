@@ -75,6 +75,7 @@ export function createFakeContext(
     currentUser: fakeUser(),
     navigate: (href) => navigated.push(href),
     requestConfirmation: async () => true,
+    onlineUserIds: () => [],
     ...overrides,
   };
   return { ctx, navigated };

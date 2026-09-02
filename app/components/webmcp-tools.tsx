@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/app/context/current-user-context";
 import { useConfirmBridge } from "@/app/context/confirm-bridge-context";
 import { useWebmcpActivity } from "@/app/context/webmcp-activity-context";
+import useActiveList from "@/app/hooks/use-active-list";
 import { createClient } from "@/app/libs/supabase/client";
 import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
 import { createWebmcpTools } from "@/lib/webmcp/register";
@@ -47,6 +48,7 @@ const WebmcpTools = () => {
       },
       navigate: (href) => routerRef.current.push(href),
       requestConfirmation: (request) => requestConfirmationRef.current(request),
+      onlineUserIds: () => useActiveList.getState().members,
     };
 
     return createWebmcpTools(context, (event) => logEventRef.current(event));
