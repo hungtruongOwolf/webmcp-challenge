@@ -6,6 +6,11 @@ import {
 import { sanitizeAuthReturnPath } from "@/app/libs/auth/return-path";
 import { clampOutput, errorResult } from "@/lib/webmcp/budget";
 
+export type SignUpToolContext = {
+  beginAuthentication?: () => void;
+  returnToSignedOut?: (message: string) => void;
+};
+
 /**
  * The only public (signed-out) write tool: creates a Verb account with a
  * passkey, no password ever typed or shown. registerPasskey() inside
@@ -15,7 +20,7 @@ import { clampOutput, errorResult } from "@/lib/webmcp/budget";
  * If it's cancelled or fails, signUpWithPasskey() has already rolled the
  * account back before this returns, so the same email can be retried.
  */
-export const createSignUpTool = (): WebMCPTool => ({
+export const createSignUpTool = (ctx: SignUpToolContext = {}): WebMCPTool => ({
   name: "sign_up",
   description:
     "Create a new Verb account secured by a passkey -- never a password. Ask the person for " +
@@ -53,9 +58,18 @@ export const createSignUpTool = (): WebMCPTool => ({
         : undefined
     );
 
+    // Mirrors what the on-screen signup form does around the same gateway
+    // call (email-auth-form.tsx) -- without this, get_connection_status
+    // kept reporting SIGNED_OUT with "don't click sign-in controls
+    // yourself, ask the human to sign in" for the whole duration of a
+    // tool-driven signup, confusing an agent that just started the one
+    // flow it IS meant to drive.
+    ctx.beginAuthentication?.();
+
     const result = await gateway.signUpWithPasskey({ name, email, returnPath });
 
     if (!result.ok) {
+      ctx.returnToSignedOut?.("");
       return {
         content: [{ type: "text", text: clampOutput(authFailureMessage(result.code)) }],
         isError: true,
@@ -63,6 +77,9 @@ export const createSignUpTool = (): WebMCPTool => ({
     }
 
     if (!result.value.hasSession) {
+      ctx.returnToSignedOut?.(
+        "Account created. A confirmation link was emailed -- ask the person to open it, then set up their passkey."
+      );
       return {
         content: [
           {
@@ -73,6 +90,10 @@ export const createSignUpTool = (): WebMCPTool => ({
       };
     }
 
+    // hasSession true means signUpWithPasskey() already bootstrapped a real
+    // session -- the same onAuthStateChange-driven path the UI form relies
+    // on carries the connection state on to SESSION_READY/CONNECTED from
+    // here, so no explicit transition call is needed on this branch.
     return {
       content: [
         {

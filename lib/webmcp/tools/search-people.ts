@@ -16,7 +16,7 @@ export const searchPeople: ToolFactory = (ctx) => ({
     required: ["query"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input) => {
     const query = String(input.query || "").trim();
     if (!query) return errorResult("query is required.");

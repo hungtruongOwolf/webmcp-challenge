@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format, isToday, isYesterday, isThisWeek } from "date-fns";
+import toast from "react-hot-toast";
 import {
   HiOutlineDocument,
   HiOutlineArrowDownTray,
@@ -82,7 +83,9 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
       .from("messages")
       .update({ body })
       .eq("id", editingId)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) toast.error("Couldn't save that edit.");
+      });
 
     setEditingId(null);
     setEditDraft("");
@@ -95,7 +98,9 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
       .from("messages")
       .update({ deleted_at: new Date().toISOString() })
       .eq("id", confirmDeleteId)
-      .then(() => {});
+      .then(({ error }) => {
+        if (error) toast.error("Couldn't delete that message.");
+      });
 
     setConfirmDeleteId(null);
   };
@@ -116,7 +121,9 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
         .delete()
         .eq("message_id", message.id)
         .eq("user_id", currentUser.id)
-        .then(() => {});
+        .then(({ error }) => {
+          if (error) toast.error("Couldn't remove that reaction.");
+        });
     } else {
       supabase
         .from("message_reactions")
@@ -124,7 +131,9 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
           { message_id: message.id, user_id: currentUser.id, emoji },
           { onConflict: "message_id,user_id" }
         )
-        .then(() => {});
+        .then(({ error }) => {
+          if (error) toast.error("Couldn't react to that message.");
+        });
     }
   };
 

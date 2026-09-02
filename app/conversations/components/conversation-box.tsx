@@ -45,6 +45,7 @@ const ConversationBox: React.FC<ConversationBoxProps> = ({ data, selected }) => 
   const isUnread = unreadCount > 0;
 
   const lastMessageText = useMemo(() => {
+    if (lastMessage?.deleted_at) return "Message deleted";
     if (lastMessage?.image) return "Sent an image";
     if (lastMessage?.file_url) return `Sent a file: ${lastMessage.file_name || "attachment"}`;
     if (lastMessage?.body) return lastMessage.body;

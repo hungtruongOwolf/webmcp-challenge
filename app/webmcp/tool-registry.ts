@@ -6,6 +6,8 @@ import type { ToolApiClient } from "./tool-api-client";
 
 export type PublicToolContext = {
   getSnapshot: () => ConnectionSnapshot;
+  beginAuthentication?: () => void;
+  returnToSignedOut?: (message: string) => void;
 };
 
 export type AuthenticatedToolContext = PublicToolContext & {
@@ -18,9 +20,9 @@ export type WebMCPToolRegistry = {
 };
 
 export const defaultToolRegistry: WebMCPToolRegistry = {
-  getPublicTools: ({ getSnapshot }) => [
+  getPublicTools: ({ getSnapshot, beginAuthentication, returnToSignedOut }) => [
     createConnectionStatusTool(getSnapshot),
-    createSignUpTool(),
+    createSignUpTool({ beginAuthentication, returnToSignedOut }),
   ],
   getAuthenticatedTools: ({ getSnapshot }) => [
     createConnectionStatusTool(getSnapshot),

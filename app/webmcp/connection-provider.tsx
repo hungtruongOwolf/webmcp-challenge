@@ -194,7 +194,7 @@ export const WebMCPConnectionProvider = ({
         try {
           await Promise.all(
             registry
-              .getPublicTools({ getSnapshot })
+              .getPublicTools({ getSnapshot, beginAuthentication, returnToSignedOut })
               .map((tool) =>
                 modelContext.registerTool(tool, { signal: controller.signal })
               )
@@ -292,10 +292,12 @@ export const WebMCPConnectionProvider = ({
   }, [
     currentUserId,
     authenticatedToolsSignature,
+    beginAuthentication,
     modelContext,
     registrationAttempt,
     registry,
     reportSessionExpired,
+    returnToSignedOut,
     transition,
   ]);
 

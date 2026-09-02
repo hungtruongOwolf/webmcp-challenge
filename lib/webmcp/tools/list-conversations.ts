@@ -3,6 +3,10 @@ import { textResult, errorResult, relativeTime } from "@/lib/webmcp/budget";
 
 const DEFAULT_LIMIT = 15;
 const MAX_LIMIT = 30;
+// Bounds the nested messages embed per conversation -- without this, a
+// long-lived conversation's *entire* history was fetched just to derive
+// one preview line and an unread count, regardless of `limit`.
+const MESSAGES_WINDOW = 50;
 
 export const listConversations: ToolFactory = (ctx) => ({
   name: "list_conversations",
@@ -19,7 +23,7 @@ export const listConversations: ToolFactory = (ctx) => ({
     },
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input) => {
     const limit = Math.min(
       Math.max(Number(input.limit) || DEFAULT_LIMIT, 1),
@@ -31,10 +35,12 @@ export const listConversations: ToolFactory = (ctx) => ({
       .select(
         `id, name, is_group, last_message_at,
          members:conversation_members ( profile:profiles (*) ),
-         messages ( id, body, image, created_at, sender_id, seen:message_seen ( user_id ) )`
+         messages ( id, body, image, deleted_at, created_at, sender_id, seen:message_seen ( user_id ) )`
       )
       .order("last_message_at", { ascending: false })
-      .limit(limit);
+      .order("created_at", { ascending: false, referencedTable: "messages" })
+      .limit(limit)
+      .limit(MESSAGES_WINDOW, { referencedTable: "messages" });
 
     if (error) return errorResult(`Could not list conversations: ${error.message}`);
     if (!data || data.length === 0) return textResult("No conversations yet.");
@@ -49,7 +55,13 @@ export const listConversations: ToolFactory = (ctx) => ({
         a.created_at.localeCompare(b.created_at)
       );
       const last = msgs[msgs.length - 1];
-      const preview = last ? (last.image ? "[image]" : last.body || "") : "Started a conversation";
+      const preview = !last
+        ? "Started a conversation"
+        : last.deleted_at
+          ? "[message deleted]"
+          : last.image
+            ? "[image]"
+            : last.body || "";
       const when = last ? relativeTime(last.created_at) : relativeTime(c.last_message_at);
 
       const unreadCount = msgs.filter(

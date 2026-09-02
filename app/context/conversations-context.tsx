@@ -143,7 +143,7 @@ export function ConversationsProvider({
           const id = payload.old_record?.id ?? payload.record?.id;
 
           setConversations((current) => current.filter((c) => c.id !== id));
-          if (conversationId === id) router.push("/conversations");
+          if (conversationIdRef.current === id) router.push("/conversations");
         }
       })
       .subscribe();
@@ -151,7 +151,12 @@ export function ConversationsProvider({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentUser?.id, conversationId, router, fetchAndUpsertConversation]);
+    // conversationId is read via conversationIdRef, not as a dependency --
+    // this channel must stay subscribed across in-app navigation (deps
+    // that included it caused a teardown/resubscribe on every conversation
+    // switch, dropping any broadcast that arrived in that gap).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, router, fetchAndUpsertConversation]);
 
   return (
     <ConversationsContext.Provider
