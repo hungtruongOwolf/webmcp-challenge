@@ -184,11 +184,17 @@ describe("POST /api/messages/attachments", () => {
       error: null,
     });
 
+    maybeSingle.mockResolvedValueOnce({
+      data: { id: "conv-2", name: "Team", is_group: true, members: [] },
+      error: null,
+    });
+
     const response = await POST(
-      request({ conversationId: "conv-1", sourceMessageId: "m1", caption: "fyi" })
+      request({ conversationId: "conv-1", sourceMessageId: "m1", caption: "fyi", confirm: true })
     );
 
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ source: { id: "conv-2", name: "Team" } });
     expect(select).toHaveBeenCalledWith(expect.stringContaining("conversation_id"));
     expect(storage.copy).toHaveBeenCalledWith(
       "conv-2/other/x-report.pdf",
@@ -206,6 +212,35 @@ describe("POST /api/messages/attachments", () => {
     );
   });
 
+  it("asks for confirmation before copying an attachment out of a different conversation", async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    maybeSingle.mockResolvedValueOnce({
+      data: {
+        id: "m1",
+        conversation_id: "conv-2",
+        body: null,
+        image: "https://abc.supabase.co/storage/v1/object/sign/chat-images/conv-2/other/pic.png?token=t",
+        file_url: null,
+        file_name: null,
+        file_size: null,
+      },
+      error: null,
+    });
+    maybeSingle.mockResolvedValueOnce({
+      data: { id: "conv-2", name: "Team", is_group: true, members: [] },
+      error: null,
+    });
+
+    const response = await POST(request({ conversationId: "conv-1", sourceMessageId: "m1" }));
+
+    expect(response.status).toBe(428);
+    await expect(response.json()).resolves.toEqual({
+      needsConfirmation: true,
+      source: { id: "conv-2", name: "Team" },
+    });
+    expect(storage.copy).not.toHaveBeenCalled();
+  });
+
   it("refuses to copy a file whose URL points at the images bucket", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
     maybeSingle.mockResolvedValue({
@@ -221,7 +256,9 @@ describe("POST /api/messages/attachments", () => {
       error: null,
     });
 
-    const response = await POST(request({ conversationId: "conv-1", sourceMessageId: "m1" }));
+    const response = await POST(
+      request({ conversationId: "conv-1", sourceMessageId: "m1", confirm: true })
+    );
 
     expect(response.status).toBe(409);
     expect(storage.copy).not.toHaveBeenCalled();

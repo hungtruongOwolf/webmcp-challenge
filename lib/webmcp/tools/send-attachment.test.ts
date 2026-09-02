@@ -107,7 +107,48 @@ describe("send_attachment", () => {
       2,
       "/api/messages/attachments",
       expect.objectContaining({
-        body: JSON.stringify({ conversationId: "conv-1", caption: "again", sourceMessageId: "m1" }),
+        body: JSON.stringify({
+          conversationId: "conv-1",
+          caption: "again",
+          sourceMessageId: "m1",
+          confirm: false,
+        }),
+      })
+    );
+  });
+
+  it("previews re-sending an attachment out of another conversation, then sends once confirmed", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 428,
+      json: async () => ({ needsConfirmation: true, source: { id: "conv-2", name: "Team" } }),
+      text: async () => "",
+    });
+    const fake = createFakeSupabase({
+      results: { conversations: [{ data: conversation }, { data: conversation }] },
+    });
+    const { ctx } = createFakeContext(fake.client);
+    const tool = sendAttachment(ctx);
+
+    const preview = await tool.execute({ conversation_id: "conv-1", message_id: "m1" });
+
+    expect(preview.isError).toBeUndefined();
+    expect(resultText(preview)).toContain("Team");
+    expect(resultText(preview)).toContain("conv-2");
+    expect(resultText(preview)).toContain("different conversation");
+    expect(resultText(preview)).toContain("confirm: true");
+
+    await tool.execute({ conversation_id: "conv-1", message_id: "m1", confirm: true });
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/messages/attachments",
+      expect.objectContaining({
+        body: JSON.stringify({
+          conversationId: "conv-1",
+          caption: undefined,
+          sourceMessageId: "m1",
+          confirm: true,
+        }),
       })
     );
   });
