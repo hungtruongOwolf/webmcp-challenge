@@ -35,8 +35,11 @@ export type AuthGateway = {
   registerPasskey(): Promise<AuthResult>;
   listPasskeys(): Promise<AuthResult<PasskeyRecord[]>>;
   deletePasskey(passkeyId: string): Promise<AuthResult>;
-  signOut(): Promise<AuthResult>;
+  /** "global" ends every session (the account-switch button); "local" only this browser. */
+  signOut(scope?: SignOutScope): Promise<AuthResult>;
 };
+
+export type SignOutScope = "global" | "local";
 
 type SupabaseResponse<T> =
   | { data: T; error: null }
@@ -64,7 +67,7 @@ type AuthClient = {
         passkeyId: string;
       }): Promise<SupabaseResponse<unknown>>;
     };
-    signOut(input: { scope: "global" }): Promise<{ error: unknown }>;
+    signOut(input: { scope: SignOutScope }): Promise<{ error: unknown }>;
   };
 };
 
@@ -240,11 +243,11 @@ export const createAuthGateway = (
     }
   };
 
-  // Global scope: switching accounts on a shared device should not leave
+  // Global by default: switching accounts on a shared device should not leave
   // the previous person signed in on their other tabs or devices.
-  const signOut = async (): Promise<AuthResult> => {
+  const signOut = async (scope: SignOutScope = "global"): Promise<AuthResult> => {
     try {
-      const { error } = await client.auth.signOut({ scope: "global" });
+      const { error } = await client.auth.signOut({ scope });
       return error
         ? normalizeAuthFailure(error)
         : { ok: true, value: undefined };

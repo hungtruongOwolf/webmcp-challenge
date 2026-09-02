@@ -197,7 +197,7 @@ There are **26 registered tools in an authenticated session**: one public connec
 | Understand | `read_file` | Read an authorized shared file |
 | Understand | `read_link` | Fetch text from a link shared in a message |
 | Account | `setup_passkey` | Guide the user through passkey enrollment |
-| Account | `sign_out` | End the current session |
+| Account | `sign_out` | End the session in this browser, after a confirmed second call |
 
 ## Safety and trust boundaries
 
