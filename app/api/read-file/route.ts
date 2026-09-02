@@ -42,6 +42,7 @@ export async function POST(req: Request) {
     if (TEXT_EXTENSIONS.has(ext)) {
       const res = await safeFetch(fileUrl);
       if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
         return new NextResponse(`Could not fetch the file (status ${res.status}).`, { status: 502 });
       }
 

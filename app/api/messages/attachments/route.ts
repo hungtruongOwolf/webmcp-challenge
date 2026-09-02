@@ -12,7 +12,7 @@ import {
   requireAttachmentTarget,
   storeFetchedAttachment,
 } from "@/app/libs/supabase/attachments";
-import type { SourceConversation, StoredAttachment } from "@/app/libs/supabase/attachments";
+import type { AttachmentKind, SourceConversation, StoredAttachment } from "@/app/libs/supabase/attachments";
 
 export const runtime = "nodejs";
 
@@ -74,9 +74,16 @@ export async function POST(req: Request) {
 
       // Type and declared size are checked before a single body byte is read.
       const contentType = res.headers.get("content-type") || "";
-      const { kind } = requireAttachmentTarget(contentType);
       const declared = Number(res.headers.get("content-length"));
-      if (Number.isFinite(declared) && declared > 0) assertWithinLimit(kind, declared);
+      let kind: AttachmentKind;
+      try {
+        kind = requireAttachmentTarget(contentType).kind;
+        if (Number.isFinite(declared) && declared > 0) assertWithinLimit(kind, declared);
+      } catch (error) {
+        // Nothing will read this body; drop the socket now instead of waiting on GC.
+        await res.body?.cancel().catch(() => {});
+        throw error;
+      }
 
       stored = await storeFetchedAttachment(supabase, {
         bytes: await readBodyWithinLimit(res.body, kind),

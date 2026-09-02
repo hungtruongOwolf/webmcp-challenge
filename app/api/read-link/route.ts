@@ -54,6 +54,7 @@ export async function POST(req: Request) {
     const res = await safeFetch(rawUrl);
 
     if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
       return new NextResponse(`Could not fetch that URL (status ${res.status}).`, { status: 502 });
     }
 
