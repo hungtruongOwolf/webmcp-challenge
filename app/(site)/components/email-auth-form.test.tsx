@@ -56,6 +56,7 @@ const EmailAuthFormHarness = ({
   passkeyReady = false,
 }: RenderFormOptions) => {
   const [operationError, setOperationError] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
 
   return (
     <WebMCPConnectionProvider modelContext={null} currentUserId={null}>
@@ -66,9 +67,13 @@ const EmailAuthFormHarness = ({
         gateway={gateway}
         onAuthenticated={onAuthenticated}
         onPasskeyEnrollment={onPasskeyEnrollment}
-        isPending={false}
-        onSubmissionStart={() => true}
-        onSubmissionEnd={() => undefined}
+        isPending={isPending}
+        onSubmissionStart={() => {
+          if (isPending) return false;
+          setIsPending(true);
+          return true;
+        }}
+        onSubmissionEnd={() => setIsPending(false)}
         operationError={operationError}
         onOperationError={setOperationError}
         passkeyReady={passkeyReady}
@@ -258,18 +263,20 @@ describe("EmailAuthForm", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("signs up with a passkey and no password via its own button, leaving the password field untouched", async () => {
+  it("signs up with a passkey via its own button, going straight to authenticated -- no separate enrollment step", async () => {
     const user = userEvent.setup();
     const signUpWithPasskey = vi.fn(async () => ({
       ok: true as const,
       value: { hasSession: true },
     }));
     const signUpWithPassword = vi.fn();
+    const onAuthenticated = vi.fn();
     const onPasskeyEnrollment = vi.fn();
     renderForm({
       variant: "REGISTER",
       passkeyReady: true,
       gateway: createGateway({ signUpWithPasskey, signUpWithPassword }),
+      onAuthenticated,
       onPasskeyEnrollment,
     });
 
@@ -288,8 +295,65 @@ describe("EmailAuthForm", () => {
       returnPath: "/users",
     });
     expect(signUpWithPassword).not.toHaveBeenCalled();
-    await waitFor(() => expect(onPasskeyEnrollment).toHaveBeenCalledOnce());
-    expect(onPasskeyEnrollment).toHaveBeenCalledWith(true);
+    await waitFor(() => expect(onAuthenticated).toHaveBeenCalledOnce());
+    expect(onPasskeyEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a rolled-back passkey signup (ceremony cancelled) as a normal operation error", async () => {
+    const user = userEvent.setup();
+    const signUpWithPasskey = vi.fn(async () => ({
+      ok: false as const,
+      code: "PASSKEY_CANCELLED" as const,
+    }));
+    const onAuthenticated = vi.fn();
+    renderForm({
+      variant: "REGISTER",
+      passkeyReady: true,
+      gateway: createGateway({ signUpWithPasskey }),
+      onAuthenticated,
+    });
+
+    await user.type(screen.getByLabelText("Name"), "Ada Reader");
+    await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Sign up with a passkey" })
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Passkey sign-in cancelled. Choose another sign-in method when ready."
+      )
+    );
+    expect(onAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it("shows a waiting label on the passkey button while the ceremony is in flight", async () => {
+    const user = userEvent.setup();
+    const passkeySignup = deferred<{ ok: true; value: { hasSession: boolean } }>();
+    renderForm({
+      variant: "REGISTER",
+      passkeyReady: true,
+      gateway: createGateway({
+        signUpWithPasskey: vi.fn(() => passkeySignup.promise),
+      }),
+    });
+
+    await user.type(screen.getByLabelText("Name"), "Ada Reader");
+    await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Sign up with a passkey" })
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Waiting for your passkey…" })
+    ).toBeDisabled();
+
+    passkeySignup.resolve({ ok: true, value: { hasSession: true } });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Sign up with a passkey" })
+      ).toBeEnabled()
+    );
   });
 
   it("does not block the passkey sign-up button on the still-empty password field", async () => {

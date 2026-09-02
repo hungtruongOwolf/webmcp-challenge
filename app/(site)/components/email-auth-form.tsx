@@ -25,7 +25,7 @@ export type EmailAuthFormProps = {
   returnPath: string;
   gateway: AuthGateway;
   onAuthenticated: () => void;
-  onPasskeyEnrollment: (auto?: boolean) => void;
+  onPasskeyEnrollment: () => void;
   isPending: boolean;
   onSubmissionStart: () => boolean;
   onSubmissionEnd: () => void;
@@ -83,6 +83,11 @@ export const EmailAuthForm = ({
     if (!onSubmissionStart()) return;
 
     beginAuthentication();
+    // The gateway performs the whole thing atomically: sign up with a
+    // generated password, then register the passkey with that fresh
+    // session, rolling back to signed-out if the ceremony is cancelled or
+    // fails. By the time this resolves ok, the account is fully usable --
+    // no separate enrollment step or page to route through.
     const result = await gateway.signUpWithPasskey({
       name: values.name,
       email: values.email,
@@ -96,10 +101,7 @@ export const EmailAuthForm = ({
       return;
     }
     if (result.value.hasSession) {
-      // The user already chose "passkey" explicitly by clicking this
-      // button -- auto-start the WebAuthn ceremony on the enrollment page
-      // instead of making them click a second confirm.
-      onPasskeyEnrollment(true);
+      onAuthenticated();
       return;
     }
     returnToSignedOut("Check your email to finish creating your account.");
@@ -227,7 +229,7 @@ export const EmailAuthForm = ({
             style={primaryButtonStyle(isPending)}
           >
             <HiOutlineFingerPrint size={19} aria-hidden />
-            Sign up with a passkey
+            {isPending ? "Waiting for your passkey…" : "Sign up with a passkey"}
           </button>
           <p
             id="passkey-signup-method-description"

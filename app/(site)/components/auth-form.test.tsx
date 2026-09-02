@@ -392,7 +392,7 @@ describe("AuthForm", () => {
 
   it("does not let the auto sign-in redirect race past an offered passkey enrollment", async () => {
     const user = userEvent.setup();
-    const signUpWithPasskey = vi.fn(async () => {
+    const signUpWithPassword = vi.fn(async () => {
       // Mirrors real Supabase timing: onAuthStateChange flips currentUser
       // synchronously inside signUp(), before this promise resolves back
       // to the caller -- reproduces the live bug where the account got
@@ -400,19 +400,18 @@ describe("AuthForm", () => {
       session.currentUser = { id: "new-user" };
       return { ok: true as const, value: { hasSession: true } };
     });
-    boundary.gateway = createGateway({ signUpWithPasskey });
+    boundary.gateway = createGateway({ signUpWithPassword });
     const view = renderAuthForm();
 
     await user.click(screen.getByRole("button", { name: "Create an account" }));
     await user.type(screen.getByLabelText("Name"), "Ada Reader");
     await user.type(screen.getByLabelText("Email"), "new@example.org");
-    await user.click(
-      screen.getByRole("button", { name: "Sign up with a passkey" })
-    );
+    await user.type(screen.getByLabelText("Password"), "strong password");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
 
     await waitFor(() =>
       expect(navigation.replace).toHaveBeenCalledWith(
-        "/auth/passkey?next=%2Fusers&auto=1"
+        "/auth/passkey?next=%2Fusers"
       )
     );
 

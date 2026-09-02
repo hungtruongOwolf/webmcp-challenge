@@ -28,10 +28,7 @@ export const buildAuthCallbackUrl = (
   return url.toString();
 };
 
-export const buildPasskeyEnrollmentPath = (
-  returnPath: string,
-  auto?: boolean
-): string =>
-  `/auth/passkey?next=${encodeURIComponent(sanitizeAuthReturnPath(returnPath))}${
-    auto ? "&auto=1" : ""
-  }`;
+export const buildPasskeyEnrollmentPath = (returnPath: string): string =>
+  `/auth/passkey?next=${encodeURIComponent(
+    sanitizeAuthReturnPath(returnPath)
+  )}`;

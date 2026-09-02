@@ -64,6 +64,9 @@ type AuthClient = {
       };
     }): Promise<SupabaseResponse<{ session: unknown }>>;
     registerPasskey(): Promise<SupabaseResponse<unknown>>;
+    signOut(options?: { scope?: "local" | "global" | "others" }): Promise<{
+      error: unknown;
+    }>;
     passkey: {
       list(): Promise<SupabaseResponse<unknown>>;
       delete(input: {
@@ -211,12 +214,6 @@ export const createAuthGateway = (
   }: SignUpWithPasswordInput): Promise<AuthResult<{ hasSession: boolean }>> =>
     performSignUp(email, password, name, returnPath);
 
-  const signUpWithPasskey: AuthGateway["signUpWithPasskey"] = ({
-    email,
-    name,
-    returnPath,
-  }) => performSignUp(email, generateBootstrapPassword(), name, returnPath);
-
   const signInWithPasskey = async (): Promise<AuthResult> => {
     try {
       const { error } = await client.auth.signInWithPasskey();
@@ -250,6 +247,38 @@ export const createAuthGateway = (
     } catch (error) {
       return normalizeAuthFailure(error, "passkey");
     }
+  };
+
+  const signUpWithPasskey: AuthGateway["signUpWithPasskey"] = async ({
+    email,
+    name,
+    returnPath,
+  }) => {
+    const signUpResult = await performSignUp(
+      email,
+      generateBootstrapPassword(),
+      name,
+      returnPath
+    );
+    if (!signUpResult.ok || !signUpResult.value.hasSession) {
+      return signUpResult;
+    }
+
+    // The whole point of this path is a passkey -- a session bootstrapped
+    // with a random password nobody knows, but with no passkey enrolled,
+    // is a dead end the user can never sign back into. If the ceremony
+    // fails or is cancelled, roll back to signed-out rather than leave
+    // them stranded in that half-created state.
+    const passkeyResult = await registerPasskey();
+    if (passkeyResult.ok) return signUpResult;
+
+    try {
+      await client.auth.signOut({ scope: "local" });
+    } catch {
+      // Surfacing the real passkey failure below matters more than a
+      // rollback that couldn't complete.
+    }
+    return passkeyResult;
   };
 
   const listPasskeys = async (): Promise<AuthResult<PasskeyRecord[]>> => {

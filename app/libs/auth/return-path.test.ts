@@ -37,10 +37,4 @@ it("builds encoded sign-in, callback, and enrollment locations", () => {
   expect(buildPasskeyEnrollmentPath(conversation)).toBe(
     "/auth/passkey?next=%2Fconversations%2F5c6e7dd2-5ea2-4878-bd79-63b089ee23f4"
   );
-  expect(buildPasskeyEnrollmentPath(conversation, true)).toBe(
-    "/auth/passkey?next=%2Fconversations%2F5c6e7dd2-5ea2-4878-bd79-63b089ee23f4&auto=1"
-  );
-  expect(buildPasskeyEnrollmentPath(conversation, false)).toBe(
-    "/auth/passkey?next=%2Fconversations%2F5c6e7dd2-5ea2-4878-bd79-63b089ee23f4"
-  );
 });

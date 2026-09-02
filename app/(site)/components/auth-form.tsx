@@ -95,13 +95,10 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     router.refresh();
   }, [destination, router]);
 
-  const offerPasskeyEnrollment = useCallback(
-    (auto?: boolean) => {
-      skipAutoRedirectRef.current = true;
-      router.replace(buildPasskeyEnrollmentPath(destination, auto));
-    },
-    [destination, router]
-  );
+  const offerPasskeyEnrollment = useCallback(() => {
+    skipAutoRedirectRef.current = true;
+    router.replace(buildPasskeyEnrollmentPath(destination));
+  }, [destination, router]);
 
   const signInWithPasskey = async () => {
     if (!startSubmission()) return;

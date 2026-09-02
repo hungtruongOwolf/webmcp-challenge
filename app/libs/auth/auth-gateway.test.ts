@@ -33,6 +33,7 @@ const makeClient = () => ({
       },
       error: null,
     }),
+    signOut: vi.fn().mockResolvedValue({ error: null }),
     passkey: {
       list: vi.fn().mockResolvedValue({ data: [], error: null }),
       delete: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -231,6 +232,71 @@ describe("email and password boundaries", () => {
     expect(result).toEqual({ ok: true, value: { hasSession: true } });
     expect(JSON.stringify(result)).not.toContain(call.password);
     expect(JSON.stringify(result)).not.toContain("access_token");
+  });
+
+  it("registers the passkey immediately as part of a successful passkey signup", async () => {
+    const client = makeClient();
+
+    const result = await gatewayFor(client).signUpWithPasskey({
+      name: "Blind User",
+      email: "blind.user@example.org",
+      returnPath: "/users",
+    });
+
+    expect(client.auth.registerPasskey).toHaveBeenCalledTimes(1);
+    expect(client.auth.signOut).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, value: { hasSession: true } });
+  });
+
+  it("rolls back to signed-out when the passkey ceremony is cancelled during passkey signup", async () => {
+    const client = makeClient();
+    client.auth.registerPasskey.mockResolvedValueOnce({
+      data: null,
+      error: Object.assign(new Error("cancelled"), { name: "NotAllowedError" }),
+    });
+
+    const result = await gatewayFor(client).signUpWithPasskey({
+      name: "Blind User",
+      email: "blind.user@example.org",
+      returnPath: "/users",
+    });
+
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(result).toEqual({ ok: false, code: "PASSKEY_CANCELLED" });
+  });
+
+  it("still rolls back even if the sign-out call itself fails", async () => {
+    const client = makeClient();
+    client.auth.registerPasskey.mockResolvedValueOnce({
+      data: null,
+      error: Object.assign(new Error("cancelled"), { name: "NotAllowedError" }),
+    });
+    client.auth.signOut.mockRejectedValueOnce(new Error("network down"));
+
+    await expect(
+      gatewayFor(client).signUpWithPasskey({
+        name: "Blind User",
+        email: "blind.user@example.org",
+        returnPath: "/users",
+      })
+    ).resolves.toEqual({ ok: false, code: "PASSKEY_CANCELLED" });
+  });
+
+  it("does not attempt to register a passkey when signup left no session", async () => {
+    const client = makeClient();
+    client.auth.signUp.mockResolvedValueOnce({
+      data: { user: { id: "user-id" }, session: null },
+      error: null,
+    });
+
+    const result = await gatewayFor(client).signUpWithPasskey({
+      name: "Blind User",
+      email: "blind.user@example.org",
+      returnPath: "/users",
+    });
+
+    expect(client.auth.registerPasskey).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, value: { hasSession: false } });
   });
 
   it("generates a different bootstrap password on every passkey signup call", async () => {
