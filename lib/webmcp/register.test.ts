@@ -37,4 +37,33 @@ describe("createWebmcpTools", () => {
     ]);
     expect(onEvent).not.toHaveBeenCalled();
   });
+
+  it("flags every tool whose result carries text another user wrote", () => {
+    const tools = createWebmcpTools({} as ToolContext, vi.fn());
+    const flagged = tools
+      .filter((tool) => tool.annotations?.untrustedContentHint === true)
+      .map((tool) => tool.name)
+      .sort();
+
+    expect(flagged).toEqual(
+      [
+        "delete_message",
+        "describe_image",
+        "forward_message",
+        "list_conversations",
+        "list_people",
+        "open_conversation",
+        "read_conversation",
+        "read_file",
+        "read_link",
+        "search_messages",
+        "search_people",
+        "send_attachment",
+        "send_message",
+        "start_conversation",
+        "summarize_conversation",
+        "wait_for_new_messages",
+      ].sort()
+    );
+  });
 });
