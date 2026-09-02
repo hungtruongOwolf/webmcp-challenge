@@ -243,6 +243,8 @@ export const WebMCPConnectionProvider = ({
           authenticatedToolsRef.current.values()
         ).filter((tool) => !registryToolNames.has(tool.name));
         const tools = [...registryTools, ...catalogTools].map((tool) => ({
+          // Descriptions and schemas are static per name: a later catalog
+          // with the same names only swaps the handlers, never this metadata.
           ...tool,
           execute: async (
             input: Record<string, unknown>,
