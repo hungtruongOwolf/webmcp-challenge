@@ -7,12 +7,15 @@ import { HiPaperAirplane, HiOutlinePhoto, HiOutlinePaperClip } from "react-icons
 
 import useConversation from "@/app/hooks/use-conversation";
 import { createClient } from "@/app/libs/supabase/client";
-import { uploadChatImage, uploadChatFile } from "@/app/libs/supabase/upload";
+import {
+  MAX_FILE_BYTES,
+  MAX_IMAGE_BYTES,
+  describeUploadError,
+  uploadChatImage,
+  uploadChatFile,
+} from "@/app/libs/supabase/upload";
 import { useCurrentUser } from "@/app/context/current-user-context";
 import StickerPicker from "./sticker-picker";
-
-const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
 
 const Form = () => {
   const { conversationId } = useConversation();
@@ -108,8 +111,8 @@ const Form = () => {
         await remove().catch(() => {});
         throw err;
       }
-    } catch {
-      toast.error("Couldn't upload that image.");
+    } catch (err) {
+      toast.error(describeUploadError(err));
     } finally {
       setUploading(false);
     }
@@ -152,8 +155,8 @@ const Form = () => {
         await remove().catch(() => {});
         throw err;
       }
-    } catch {
-      toast.error("Couldn't upload that file.");
+    } catch (err) {
+      toast.error(describeUploadError(err));
     } finally {
       setUploading(false);
     }

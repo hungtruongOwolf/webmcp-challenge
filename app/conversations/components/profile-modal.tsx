@@ -8,7 +8,7 @@ import type { User } from "@/app/types";
 import { HiXMark } from "react-icons/hi2";
 
 import { createClient } from "@/app/libs/supabase/client";
-import { uploadAvatar } from "@/app/libs/supabase/upload";
+import { describeUploadError, uploadAvatar } from "@/app/libs/supabase/upload";
 import Avatar from "@/app/components/avatar";
 import ConfirmDialog from "@/app/components/modals/confirm-dialog";
 import PasskeyManager from "@/app/components/passkey-manager";
@@ -54,8 +54,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
     try {
       const url = await uploadAvatar(createClient(), file);
       setImage(url);
-    } catch {
-      toast.error("Couldn't upload that photo.");
+    } catch (err) {
+      toast.error(describeUploadError(err));
     } finally {
       setIsUploadingAvatar(false);
     }
