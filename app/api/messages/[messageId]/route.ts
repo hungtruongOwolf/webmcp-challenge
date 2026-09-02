@@ -55,19 +55,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<IParams>
     const { refusal } = await loadOwnMessage(supabase, messageId, user.id);
     if (refusal) return refusal;
 
-    const editedAt = new Date().toISOString();
+    // The stamp_message_update trigger sets edited_at; the row's value is the truth.
     const { data, error } = await supabase
       .from("messages")
-      .update({ body, edited_at: editedAt })
+      .update({ body })
       .eq("id", messageId)
       .eq("sender_id", user.id)
       .is("deleted_at", null)
-      .select("id")
+      .select("id, edited_at")
       .maybeSingle();
     if (error) throw error;
     if (!data) return new NextResponse("The message changed before the edit could be saved.", { status: 409 });
 
-    return NextResponse.json({ id: messageId, body, editedAt });
+    return NextResponse.json({ id: messageId, body, editedAt: data.edited_at });
   } catch (error: unknown) {
     console.error("ERROR_MESSAGE_EDIT:", error);
     return new NextResponse("Internal Server Error.", { status: 500 });
