@@ -99,6 +99,7 @@ retain control; agents combine explicit tools to carry it out.
   seen state, and sidebar updates
 - Private image and file attachments backed by signed URLs
 - Message search, reactions, and 20 emoji stickers
+- Edit and delete your own messages; deleted messages leave a short placeholder
 - Per-conversation drafts that persist when the user navigates away
 - AI summaries that combine read and unread history into one coherent recap
 - AI image descriptions for blind and low-vision users
@@ -107,10 +108,10 @@ retain control; agents combine explicit tools to carry it out.
 
 ## WebMCP implementation
 
-Verb uses the browser's `document.modelContext` API directly. A public
-`get_connection_status` tool is available before authentication. After sign-in,
-the connection provider registers 18 session-scoped tools and removes them with
-an `AbortSignal` when the session changes.
+Verb uses the browser's `document.modelContext` API directly.
+A public `get_connection_status` tool is available before authentication.
+After sign-in, the connection provider registers 25 session-scoped tools and removes them with an `AbortSignal` when the session changes.
+Registration is keyed on the set of tool names, so client-side navigation never re-registers the catalog and an agent's tool handles stay valid across `open_conversation`.
 
 The real registration lifecycle lives in
 [`app/webmcp/connection-provider.tsx`](app/webmcp/connection-provider.tsx).
@@ -161,20 +162,26 @@ Small, structured result returns to the agent and activity panel
 
 ### Registered tools
 
-There are **19 registered tools in an authenticated session**: one public
-connection tool plus 18 messaging tools.
+There are **26 registered tools in an authenticated session**: one public connection tool plus 25 messaging tools.
 
 | Category | Tool | Purpose |
 |---|---|---|
 | Connection | `get_connection_status` | Report sign-in and WebMCP connection state |
 | Discover | `list_conversations` | List the user's conversations |
-| Discover | `read_conversation` | Read recent messages with pagination |
+| Discover | `read_conversation` | Read recent messages with pagination; shows edited and deleted state |
 | Discover | `search_messages` | Search a conversation with an optional date range |
 | Discover | `search_people` | Find a person by name or email |
+| Discover | `list_people` | List everyone in the directory with online status |
 | Discover | `get_my_profile` | Return the signed-in user's profile |
-| Navigate | `open_conversation` | Open or start a one-to-one conversation |
-| Compose | `draft_message` | Save a draft without sending it |
-| Compose | `send_message` | Send the currently saved draft |
+| Discover | `wait_for_new_messages` | Block until someone else writes, or time out (max 60 s) |
+| Navigate | `open_conversation` | Open an existing conversation by id or by the other person's id |
+| Navigate | `start_conversation` | Create a one-to-one chat (or reuse it) and open it; reports `created` |
+| Compose | `draft_message` | Save a draft without sending it, for review before send |
+| Compose | `send_message` | Send text in one call, or send the saved draft when no text is given |
+| Compose | `send_attachment` | Send an image or file from a data URL, a public URL, or an existing message |
+| Compose | `forward_message` | Forward a message's text and attachment into another conversation |
+| Compose | `edit_message` | Replace the text of your own message; it shows as edited |
+| Compose | `delete_message` | Soft-delete your own message after explicit confirmation |
 | Compose | `react_to_message` | Add or remove one of six reactions |
 | Compose | `send_sticker` | Send one of 20 emoji stickers |
 | Organize | `create_group` | Create a group from names, emails, or IDs |
