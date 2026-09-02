@@ -34,6 +34,11 @@ export type AuthGateway = {
     password: string;
     returnPath: string;
   }): Promise<AuthResult<{ hasSession: boolean }>>;
+  signUpWithPasskey(input: {
+    name: string;
+    email: string;
+    returnPath: string;
+  }): Promise<AuthResult<{ hasSession: boolean }>>;
   registerPasskey(): Promise<AuthResult>;
   listPasskeys(): Promise<AuthResult<PasskeyRecord[]>>;
   deletePasskey(passkeyId: string): Promise<AuthResult>;
@@ -124,6 +129,22 @@ const resolveAppOrigin = (): string => {
   throw new Error("App origin is unavailable.");
 };
 
+/**
+ * Bootstraps a session for passkey-only signup. registerPasskey() hard-
+ * requires an existing session (Supabase's WebAuthn beta has no
+ * signUpWithPasskey -- verified against the @supabase/auth-js source, and
+ * this project has anonymous sign-ins disabled -- verified live against the
+ * Auth API), so signUpWithPasskey still calls the same password signUp
+ * underneath. The password is generated here, used once, and never stored,
+ * logged, or shown -- the user only ever authenticates with the passkey
+ * enrolled right after.
+ */
+const generateBootstrapPassword = (): string => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
+};
+
 const toPasskeyRecord = (value: unknown): PasskeyRecord | undefined => {
   if (typeof value !== "object" || value === null) return undefined;
 
@@ -150,14 +171,12 @@ export const createAuthGateway = (
   client: AuthClient = createClient(),
   appOrigin: string = resolveAppOrigin()
 ): AuthGateway => {
-  const signUpWithPassword = async ({
-    email,
-    password,
-    name,
-    returnPath,
-  }: SignUpWithPasswordInput): Promise<
-    AuthResult<{ hasSession: boolean }>
-  > => {
+  const performSignUp = async (
+    email: string,
+    password: string,
+    name: string,
+    returnPath: string
+  ): Promise<AuthResult<{ hasSession: boolean }>> => {
     try {
       const { data, error } = await client.auth.signUp({
         email,
@@ -183,6 +202,20 @@ export const createAuthGateway = (
       return normalizeAuthFailure(error);
     }
   };
+
+  const signUpWithPassword = ({
+    email,
+    password,
+    name,
+    returnPath,
+  }: SignUpWithPasswordInput): Promise<AuthResult<{ hasSession: boolean }>> =>
+    performSignUp(email, password, name, returnPath);
+
+  const signUpWithPasskey: AuthGateway["signUpWithPasskey"] = ({
+    email,
+    name,
+    returnPath,
+  }) => performSignUp(email, generateBootstrapPassword(), name, returnPath);
 
   const signInWithPasskey = async (): Promise<AuthResult> => {
     try {
@@ -250,6 +283,7 @@ export const createAuthGateway = (
     signInWithPasskey,
     signInWithPassword,
     signUpWithPassword,
+    signUpWithPasskey,
     registerPasskey,
     listPasskeys,
     deletePasskey,

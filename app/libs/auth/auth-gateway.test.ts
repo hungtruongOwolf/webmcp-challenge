@@ -208,6 +208,50 @@ describe("email and password boundaries", () => {
     expect(JSON.stringify(result)).not.toContain("access_token");
   });
 
+  it("signs up with a passkey using a generated password never returned to the caller", async () => {
+    const client = makeClient();
+
+    const result = await gatewayFor(client).signUpWithPasskey({
+      name: "Blind User",
+      email: "blind.user@example.org",
+      returnPath: "/users",
+    });
+
+    expect(client.auth.signUp).toHaveBeenCalledTimes(1);
+    const call = client.auth.signUp.mock.calls[0][0];
+    expect(call.email).toBe("blind.user@example.org");
+    expect(call.options).toEqual({
+      data: { name: "Blind User" },
+      emailRedirectTo:
+        "https://messenger.example/auth/callback?next=%2Fusers&enroll=passkey",
+    });
+    expect(typeof call.password).toBe("string");
+    expect(call.password.length).toBeGreaterThanOrEqual(32);
+
+    expect(result).toEqual({ ok: true, value: { hasSession: true } });
+    expect(JSON.stringify(result)).not.toContain(call.password);
+    expect(JSON.stringify(result)).not.toContain("access_token");
+  });
+
+  it("generates a different bootstrap password on every passkey signup call", async () => {
+    const client = makeClient();
+    const gateway = gatewayFor(client);
+
+    await gateway.signUpWithPasskey({
+      name: "A",
+      email: "a@example.org",
+      returnPath: "/users",
+    });
+    await gateway.signUpWithPasskey({
+      name: "B",
+      email: "b@example.org",
+      returnPath: "/users",
+    });
+
+    const [firstCall, secondCall] = client.auth.signUp.mock.calls;
+    expect(firstCall[0].password).not.toBe(secondCall[0].password);
+  });
+
   it("signs in with a password without returning user or session data", async () => {
     const client = makeClient();
 

@@ -28,6 +28,7 @@ export type EmailAuthFormProps = {
   onSubmissionEnd: () => void;
   operationError: string | null;
   onOperationError: (message: string | null) => void;
+  passkeyReady?: boolean;
 };
 
 export const EmailAuthForm = ({
@@ -41,10 +42,13 @@ export const EmailAuthForm = ({
   onSubmissionEnd,
   operationError,
   onOperationError,
+  passkeyReady = false,
 }: EmailAuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
   const [focusSummaryRequested, setFocusSummaryRequested] = useState(false);
+  const [passkeySignup, setPasskeySignup] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
+  const usingPasskeySignup = variant === "REGISTER" && passkeyReady && passkeySignup;
   const {
     register,
     handleSubmit,
@@ -76,6 +80,28 @@ export const EmailAuthForm = ({
 
   const submitPassword = async (values: EmailAuthValues) => {
     if (!onSubmissionStart()) return;
+
+    if (usingPasskeySignup) {
+      beginAuthentication();
+      const result = await gateway.signUpWithPasskey({
+        name: values.name,
+        email: values.email,
+        returnPath,
+      });
+      onSubmissionEnd();
+      if (!result.ok) {
+        const message = authFailureMessage(result.code);
+        returnToSignedOut("");
+        onOperationError(message);
+        return;
+      }
+      if (result.value.hasSession) {
+        onPasskeyEnrollment();
+        return;
+      }
+      returnToSignedOut("Check your email to finish creating your account.");
+      return;
+    }
 
     if (!values.password) {
       onSubmissionEnd();
@@ -179,28 +205,54 @@ export const EmailAuthForm = ({
         required
       />
 
-      <Input<EmailAuthValues>
-        type="password"
-        id="password"
-        label="Password"
-        autoComplete={variant === "LOGIN" ? "current-password" : "new-password"}
-        register={register}
-        errors={errors}
-        disabled={isPending}
-        registerOptions={
-          variant === "REGISTER"
-            ? {
-                minLength: {
-                  value: 6,
-                  message: "Password should be at least 6 characters.",
-                },
-              }
-            : undefined
-        }
-      />
+      {variant === "REGISTER" && passkeyReady && (
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 13,
+            color: "var(--t2)",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={passkeySignup}
+            onChange={(event) => setPasskeySignup(event.target.checked)}
+            disabled={isPending}
+          />
+          Use a passkey instead of a password
+        </label>
+      )}
+
+      {!usingPasskeySignup && (
+        <Input<EmailAuthValues>
+          type="password"
+          id="password"
+          label="Password"
+          autoComplete={variant === "LOGIN" ? "current-password" : "new-password"}
+          register={register}
+          errors={errors}
+          disabled={isPending}
+          registerOptions={
+            variant === "REGISTER"
+              ? {
+                  minLength: {
+                    value: 6,
+                    message: "Password should be at least 6 characters.",
+                  },
+                }
+              : undefined
+          }
+        />
+      )}
 
       <Button type="submit" disabled={isPending} fullWidth>
-        {variant === "LOGIN" ? "Sign in" : "Create account"}
+        {variant === "LOGIN"
+          ? "Sign in"
+          : usingPasskeySignup
+            ? "Create account with a passkey"
+            : "Create account"}
       </Button>
     </form>
   );

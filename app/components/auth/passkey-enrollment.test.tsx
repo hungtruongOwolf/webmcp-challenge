@@ -56,6 +56,10 @@ const createGateway = (
     ok: true,
     value: { hasSession: true },
   }),
+  signUpWithPasskey: async () => ({
+    ok: true,
+    value: { hasSession: true },
+  }),
   registerPasskey,
   listPasskeys: async () => ({ ok: true, value: [] }),
   deletePasskey: async () => success,

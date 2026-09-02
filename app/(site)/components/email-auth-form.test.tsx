@@ -30,6 +30,10 @@ const createGateway = (overrides: Partial<AuthGateway> = {}): AuthGateway => ({
     ok: true as const,
     value: { hasSession: true },
   })),
+  signUpWithPasskey: vi.fn(async () => ({
+    ok: true as const,
+    value: { hasSession: true },
+  })),
   registerPasskey: vi.fn(async () => success),
   listPasskeys: vi.fn(async () => ({ ok: true as const, value: [] })),
   deletePasskey: vi.fn(async () => success),
@@ -41,6 +45,7 @@ type RenderFormOptions = {
   gateway?: AuthGateway;
   onAuthenticated?: () => void;
   onPasskeyEnrollment?: () => void;
+  passkeyReady?: boolean;
 };
 
 const EmailAuthFormHarness = ({
@@ -48,6 +53,7 @@ const EmailAuthFormHarness = ({
   gateway = createGateway(),
   onAuthenticated = vi.fn(),
   onPasskeyEnrollment = vi.fn(),
+  passkeyReady = false,
 }: RenderFormOptions) => {
   const [operationError, setOperationError] = useState<string | null>(null);
 
@@ -65,6 +71,7 @@ const EmailAuthFormHarness = ({
         onSubmissionEnd={() => undefined}
         operationError={operationError}
         onOperationError={setOperationError}
+        passkeyReady={passkeyReady}
       />
     </WebMCPConnectionProvider>
   );
@@ -75,6 +82,7 @@ const renderForm = ({
   gateway = createGateway(),
   onAuthenticated = vi.fn(),
   onPasskeyEnrollment = vi.fn(),
+  passkeyReady = false,
 }: RenderFormOptions = {}) =>
   render(
     <EmailAuthFormHarness
@@ -82,6 +90,7 @@ const renderForm = ({
       gateway={gateway}
       onAuthenticated={onAuthenticated}
       onPasskeyEnrollment={onPasskeyEnrollment}
+      passkeyReady={passkeyReady}
     />
   );
 
@@ -231,6 +240,48 @@ describe("EmailAuthForm", () => {
       screen.getByText("Password should be at least 6 characters.")
     ).toBeVisible();
     expect(signUpWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("omits the passkey-signup checkbox when passkeys aren't ready", () => {
+    renderForm({ variant: "REGISTER", passkeyReady: false });
+
+    expect(
+      screen.queryByLabelText("Use a passkey instead of a password")
+    ).not.toBeInTheDocument();
+  });
+
+  it("signs up with a passkey and no password when the checkbox is checked", async () => {
+    const user = userEvent.setup();
+    const signUpWithPasskey = vi.fn(async () => ({
+      ok: true as const,
+      value: { hasSession: true },
+    }));
+    const onPasskeyEnrollment = vi.fn();
+    renderForm({
+      variant: "REGISTER",
+      passkeyReady: true,
+      gateway: createGateway({ signUpWithPasskey }),
+      onPasskeyEnrollment,
+    });
+
+    await user.type(screen.getByLabelText("Name"), "Ada Reader");
+    await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByLabelText("Use a passkey instead of a password")
+    );
+
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Create account with a passkey" })
+    );
+
+    expect(signUpWithPasskey).toHaveBeenCalledWith({
+      name: "Ada Reader",
+      email: "new@example.org",
+      returnPath: "/users",
+    });
+    await waitFor(() => expect(onPasskeyEnrollment).toHaveBeenCalledOnce());
   });
 
   it("offers passkey enrollment after registration with a session", async () => {

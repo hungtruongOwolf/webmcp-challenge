@@ -218,6 +218,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
             onSubmissionEnd={endSubmission}
             operationError={operationError}
             onOperationError={setOperationError}
+            passkeyReady={readiness.status === "ready"}
           />
 
           <div
