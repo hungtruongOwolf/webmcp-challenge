@@ -22,6 +22,8 @@ describe("createWebmcpTools", () => {
       "send_message",
       "send_attachment",
       "forward_message",
+      "edit_message",
+      "delete_message",
       "delete_conversation",
       "describe_image",
       "read_file",
