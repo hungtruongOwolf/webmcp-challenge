@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { useCurrentUser } from "@/app/context/current-user-context";
@@ -36,12 +36,16 @@ const WebmcpTools = () => {
   const subscribeToInboxRef = useRef(subscribeToInbox);
   const isInboxLiveRef = useRef(isInboxLive);
   const logEventRef = useRef(logEvent);
-  currentUserRef.current = currentUser;
-  routerRef.current = router;
-  requestConfirmationRef.current = requestConfirmation;
-  subscribeToInboxRef.current = subscribeToInbox;
-  isInboxLiveRef.current = isInboxLive;
-  logEventRef.current = logEvent;
+  // A layout effect, not a render-time write: it lands before paint and
+  // before any tool can run, without mutating refs inside render.
+  useLayoutEffect(() => {
+    currentUserRef.current = currentUser;
+    routerRef.current = router;
+    requestConfirmationRef.current = requestConfirmation;
+    subscribeToInboxRef.current = subscribeToInbox;
+    isInboxLiveRef.current = isInboxLive;
+    logEventRef.current = logEvent;
+  });
 
   const tools = useMemo(() => {
     if (currentUserId === null) return [];
