@@ -20,12 +20,21 @@ import StickerPicker from "./sticker-picker";
 const Form = () => {
   const { conversationId } = useConversation();
   const currentUser = useCurrentUser();
-  const [draft, setDraft] = useState("");
+  // The input is uncontrolled: agents write straight to the DOM node, and a
+  // controlled value would snap back to state on the next render (Thread
+  // rerenders this form on every realtime event and token refresh). hasText
+  // only drives the Send button's look.
+  const [hasText, setHasText] = useState(false);
   const [uploading, setUploading] = useState(false);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentUserId = currentUser?.id ?? null;
+
+  const setInputText = (text: string) => {
+    if (messageInputRef.current) messageInputRef.current.value = text;
+    setHasText(text.trim().length > 0);
+  };
 
   // Seeds the input with whatever draft_message (the WebMCP tool) last saved
   // for this conversation -- otherwise a drafted reply never surfaces here.
@@ -36,7 +45,7 @@ const Form = () => {
   // out a fresh user object on every token refresh, which used to wipe
   // whatever was typed.
   useEffect(() => {
-    setDraft("");
+    setInputText("");
     if (!conversationId || !currentUserId) return;
 
     let cancelled = false;
@@ -49,7 +58,9 @@ const Form = () => {
       .eq("user_id", currentUserId)
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled) setDraft(data?.body ?? "");
+        // No draft means leave the box alone: by now the person (or an
+        // agent) may already have put text in it.
+        if (!cancelled && data?.body) setInputText(data.body);
       });
 
     return () => {
@@ -59,16 +70,13 @@ const Form = () => {
 
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // The element is the source of truth. Agents and test harnesses write to
-    // the node directly, and React's value tracker swallows that input event,
-    // so the state alone can lag behind what the person sees in the box.
-    const message = (messageInputRef.current?.value ?? draft).trim();
+    const message = (messageInputRef.current?.value ?? "").trim();
     if (!message) {
       messageInputRef.current?.focus();
       return;
     }
 
-    setDraft("");
+    setInputText("");
 
     try {
       // The realtime subscription in Thread picks this up for everyone,
@@ -76,7 +84,7 @@ const Form = () => {
       await axios.post("/api/messages", { message, conversationId });
     } catch {
       toast.error("Couldn't send that message.");
-      setDraft(message);
+      setInputText(message);
       return;
     }
 
@@ -238,8 +246,10 @@ const Form = () => {
             type="text"
             aria-label="Type a message"
             placeholder="Type a message..."
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            defaultValue=""
+            // onInput (not onChange) also fires for a dispatched input event
+            // after a direct .value write, which React's change tracker eats.
+            onInput={(e) => setHasText(e.currentTarget.value.trim().length > 0)}
             style={{
               flex: 1,
               minWidth: 0,
@@ -264,11 +274,11 @@ const Form = () => {
               height: 44,
               border: "none",
               borderRadius: 10,
-              background: draft.trim() ? "var(--accent)" : "var(--hover)",
-              color: draft.trim() ? "#fff" : "var(--t3)",
+              background: hasText ? "var(--accent)" : "var(--hover)",
+              color: hasText ? "#fff" : "var(--t3)",
               display: "grid",
               placeItems: "center",
-              cursor: draft.trim() ? "pointer" : "default",
+              cursor: hasText ? "pointer" : "default",
             }}
           >
             <HiPaperAirplane size={19} />

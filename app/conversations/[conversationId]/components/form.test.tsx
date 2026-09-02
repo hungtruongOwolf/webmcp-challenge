@@ -131,7 +131,7 @@ describe("message Form", () => {
       screen.getByLabelText<HTMLInputElement>("Type a message"),
       "placed by automation"
     );
-    expect(send).toHaveStyle({ cursor: "pointer" });
+    await waitFor(() => expect(send).toHaveStyle({ cursor: "pointer" }));
 
     await user.click(send);
 
