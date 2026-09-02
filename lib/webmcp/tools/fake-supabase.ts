@@ -6,6 +6,36 @@ export type FakeResult = { data?: unknown; error?: { message: string } | null };
 
 export type RecordedQuery = { table: string; ops: Array<[string, unknown[]]> };
 
+type BroadcastHandler = (message: { payload: Record<string, unknown> }) => void;
+
+export type FakeChannel = {
+  topic: string;
+  on: (type: string, filter: unknown, handler: BroadcastHandler) => FakeChannel;
+  subscribe: (onStatus?: (status: string) => void) => FakeChannel;
+  /** Test hooks: drive the subscription status and deliver broadcasts. */
+  setStatus: (status: string) => void;
+  broadcast: (payload: Record<string, unknown>) => void;
+};
+
+function createFakeChannel(topic: string): FakeChannel {
+  const handlers: BroadcastHandler[] = [];
+  let onStatus: ((status: string) => void) | undefined;
+  const channel: FakeChannel = {
+    topic,
+    on: (_type, _filter, handler) => {
+      handlers.push(handler);
+      return channel;
+    },
+    subscribe: (statusHandler) => {
+      onStatus = statusHandler;
+      return channel;
+    },
+    setStatus: (status) => onStatus?.(status),
+    broadcast: (payload) => handlers.forEach((handler) => handler({ payload })),
+  };
+  return channel;
+}
+
 /**
  * A stand-in for the browser client: every from(table) call pops the next
  * queued result for that table, and every chained call is recorded so a test
@@ -43,6 +73,9 @@ export function createFakeSupabase(options: {
     return chain;
   };
 
+  const channels: FakeChannel[] = [];
+  const removedChannels: FakeChannel[] = [];
+
   const client = {
     from,
     rpc: async (name: string, args: Record<string, unknown>) => {
@@ -50,12 +83,23 @@ export function createFakeSupabase(options: {
       return { data: null, error: null, ...(options.rpc?.(name, args) ?? {}) };
     },
     storage: options.storage,
+    channel: (topic: string) => {
+      const channel = createFakeChannel(topic);
+      channels.push(channel);
+      return channel;
+    },
+    removeChannel: async (channel: FakeChannel) => {
+      removedChannels.push(channel);
+      return "ok";
+    },
   };
 
   return {
     client: client as unknown as SupabaseBrowserClient,
     queries,
     rpcCalls,
+    channels,
+    removedChannels,
     /** Returns the recorded ops of the nth query against a table. */
     opsFor: (table: string, index = 0) =>
       queries.filter((q) => q.table === table)[index]?.ops ?? [],

@@ -29,6 +29,7 @@ describe("createWebmcpTools", () => {
       "react_to_message",
       "send_sticker",
       "summarize_conversation",
+      "wait_for_new_messages",
     ]);
     expect(onEvent).not.toHaveBeenCalled();
   });
