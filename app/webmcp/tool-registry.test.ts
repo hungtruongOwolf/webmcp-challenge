@@ -9,9 +9,10 @@ const getSnapshot = vi.fn(() => ({
   guidance: "Sign-in requires the human, not the agent.",
 }));
 
-it("ships only connection status in public and authenticated scopes", () => {
+it("ships connection status plus sign-up in the public scope, only connection status once authenticated", () => {
   expect(defaultToolRegistry.getPublicTools({ getSnapshot }).map((tool) => tool.name)).toEqual([
     "get_connection_status",
+    "sign_up",
   ]);
   expect(
     defaultToolRegistry

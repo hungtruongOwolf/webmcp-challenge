@@ -31,6 +31,17 @@ const boundary = vi.hoisted(() => ({
   gateway: null as AuthGateway | null,
 }));
 
+// Captures the real createAuthGateway (before it's overridden below) so one
+// test can drive a second, genuinely independent gateway instance against
+// the real signUpWithPasskey()/isPasskeySignupInFlight() implementation --
+// simulating the `sign_up` WebMCP tool, which builds its own gateway
+// entirely outside this component's state.
+const real = vi.hoisted(() => ({
+  createAuthGateway: undefined as
+    | typeof import("@/app/libs/auth/auth-gateway").createAuthGateway
+    | undefined,
+}));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.pathname,
   useRouter: () => ({
@@ -62,6 +73,7 @@ vi.mock("@/app/libs/auth/auth-gateway", async (importOriginal) => {
   const actual = await importOriginal<
     typeof import("@/app/libs/auth/auth-gateway")
   >();
+  real.createAuthGateway = actual.createAuthGateway;
   return {
     ...actual,
     createAuthGateway: () => boundary.gateway,
@@ -457,6 +469,57 @@ describe("AuthForm", () => {
     expect(navigation.replace).not.toHaveBeenCalledWith("/users");
 
     passkeySignup.resolve({ ok: true, value: { hasSession: true } });
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/users")
+    );
+  });
+
+  it("does not redirect while a passkey signup started by something else entirely (the sign_up WebMCP tool) is in flight", async () => {
+    // AuthForm's own gateway (boundary.gateway) never gets called in this
+    // test -- the whole point is that the guard has to work even when the
+    // in-flight signUpWithPasskey() call belongs to a completely separate
+    // gateway instance this component knows nothing about, the way the
+    // `sign_up` tool's own createAuthGateway() call does in production.
+    boundary.gateway = createGateway();
+    const passkeyCeremony = deferred<{ data: null; error: null }>();
+    const otherClient = {
+      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+      auth: {
+        signInWithPasskey: vi.fn(),
+        signInWithPassword: vi.fn(),
+        signUp: vi.fn().mockResolvedValue({
+          data: { user: { id: "tool-user" }, session: { access_token: "tok" } },
+          error: null,
+        }),
+        registerPasskey: vi.fn(() => passkeyCeremony.promise),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
+        passkey: { list: vi.fn(), delete: vi.fn() },
+      },
+    };
+    const otherGateway = real.createAuthGateway!(
+      otherClient as never,
+      "https://messenger.example"
+    );
+
+    const view = renderAuthForm();
+
+    const signUpPromise = otherGateway.signUpWithPasskey({
+      name: "Tool User",
+      email: "tool-user@example.org",
+      returnPath: "/users",
+    });
+
+    // The other gateway's signUp() has resolved (session established) but
+    // registerPasskey() is still pending -- this is exactly the live bug's
+    // window, just triggered by a caller AuthForm has no direct handle on.
+    session.currentUser = { id: "tool-user" };
+    view.rerender(authFormTree("/users"));
+    expect(navigation.replace).not.toHaveBeenCalledWith("/users");
+
+    passkeyCeremony.resolve({ data: null, error: null });
+    await signUpPromise;
+
+    view.rerender(authFormTree("/users"));
     await waitFor(() =>
       expect(navigation.replace).toHaveBeenCalledWith("/users")
     );

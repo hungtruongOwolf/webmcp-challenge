@@ -271,7 +271,10 @@ describe("WebMCPConnectionProvider", () => {
 
     rerender(renderTree(null));
     await waitFor(() =>
-      expect(modelContext.activeNames()).toEqual(["get_connection_status"])
+      expect(modelContext.activeNames()).toEqual([
+        "get_connection_status",
+        "sign_up",
+      ])
     );
     expect(modelContext.abortedRegistrationCount()).toBe(
       settledRegistrationCount

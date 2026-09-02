@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { HiOutlineFingerPrint } from "react-icons/hi2";
 
@@ -9,6 +9,8 @@ import { usePasskeyReadiness } from "@/app/hooks/use-passkey-readiness";
 import {
   authFailureMessage,
   createAuthGateway,
+  isPasskeySignupInFlight,
+  subscribePasskeySignupInFlight,
   type AuthGateway,
 } from "@/app/libs/auth/auth-gateway";
 import { markFocusAfterAuth } from "@/app/libs/auth/focus-after-auth";
@@ -56,6 +58,16 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   // isPending alone doesn't protect (it's already false by the time that
   // redirect fires, one tick later in the same synchronous continuation).
   const skipAutoRedirectRef = useRef(false);
+  // Covers the same race for the `sign_up` WebMCP tool, which calls
+  // signUpWithPasskey() through its own gateway instance outside any of
+  // this component's own state (isPending/skipAutoRedirectRef are both
+  // local to whichever call happened to go through this component's own
+  // handlers) -- this is the one signal both callers actually share.
+  const passkeySignupInFlight = useSyncExternalStore(
+    subscribePasskeySignupInFlight,
+    isPasskeySignupInFlight,
+    () => false
+  );
 
   const getGateway = () => {
     gatewayRef.current ??= createAuthGateway();
@@ -75,10 +87,15 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   }, []);
 
   useEffect(() => {
-    if (currentUser && !isPending && !skipAutoRedirectRef.current) {
+    if (
+      currentUser &&
+      !isPending &&
+      !passkeySignupInFlight &&
+      !skipAutoRedirectRef.current
+    ) {
       router.replace(destination);
     }
-  }, [currentUser, isPending, destination, router]);
+  }, [currentUser, isPending, passkeySignupInFlight, destination, router]);
 
   useEffect(() => {
     if (

@@ -110,10 +110,13 @@ retain control; agents combine explicit tools to carry it out.
 
 ## WebMCP implementation
 
-Verb uses the browser's `document.modelContext` API directly. A public
-`get_connection_status` tool is available before authentication. After sign-in,
-the connection provider registers 21 session-scoped tools and removes them with
-an `AbortSignal` when the session changes.
+Verb uses the browser's `document.modelContext` API directly. Two public tools
+are available before authentication: `get_connection_status`, and `sign_up`,
+which creates a passkey-only account (no password) -- the agent collects a
+name and email, then the browser's own WebAuthn prompt is what the human
+completes directly, never the agent. After sign-in, the connection provider
+registers 21 session-scoped tools and removes them with an `AbortSignal` when
+the session changes.
 
 The real registration lifecycle lives in
 [`app/webmcp/connection-provider.tsx`](app/webmcp/connection-provider.tsx).
@@ -170,6 +173,7 @@ connection tool plus 21 messaging tools.
 | Category | Tool | Purpose |
 |---|---|---|
 | Connection | `get_connection_status` | Report sign-in and WebMCP connection state |
+| Account (public, signed-out only) | `sign_up` | Create a passkey-only account -- no password |
 | Discover | `list_conversations` | List the user's conversations |
 | Discover | `read_conversation` | Read recent messages with pagination |
 | Discover | `search_messages` | Search a conversation with an optional date range |

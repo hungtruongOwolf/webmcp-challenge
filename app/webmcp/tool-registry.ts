@@ -1,6 +1,7 @@
 import type { WebMCPTool } from "./browser-api";
 import type { ConnectionSnapshot } from "./connection-state";
 import { createConnectionStatusTool } from "./connection-status-tool";
+import { createSignUpTool } from "./sign-up-tool";
 import type { ToolApiClient } from "./tool-api-client";
 
 export type PublicToolContext = {
@@ -19,6 +20,7 @@ export type WebMCPToolRegistry = {
 export const defaultToolRegistry: WebMCPToolRegistry = {
   getPublicTools: ({ getSnapshot }) => [
     createConnectionStatusTool(getSnapshot),
+    createSignUpTool(),
   ],
   getAuthenticatedTools: ({ getSnapshot }) => [
     createConnectionStatusTool(getSnapshot),
