@@ -14,6 +14,7 @@ const storage = {
 };
 const rpc = vi.fn();
 const maybeSingle = vi.fn();
+const select = vi.fn(() => ({ eq: () => ({ maybeSingle }) }));
 
 const call = (messageId: string, body: Record<string, unknown>) =>
   POST(
@@ -28,12 +29,13 @@ const call = (messageId: string, body: Record<string, unknown>) =>
 beforeEach(() => {
   rpc.mockReset();
   maybeSingle.mockReset();
+  select.mockClear();
   storage.copy.mockClear();
   vi.mocked(createClient).mockResolvedValue({
     auth: { getUser: async () => ({ data: { user: { id: "me-id" } } }) },
     rpc,
     storage: { from: () => storage },
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle }) }) }),
+    from: () => ({ select }),
   } as never);
 });
 
@@ -56,6 +58,7 @@ describe("POST /api/messages/[messageId]/forward", () => {
     maybeSingle.mockResolvedValue({
       data: {
         id: "m1",
+        conversation_id: "conv-2",
         body: "see this",
         image: "https://abc.supabase.co/storage/v1/object/sign/chat-images/conv-2/other/pic.png?token=t",
         file_url: null,
@@ -68,6 +71,7 @@ describe("POST /api/messages/[messageId]/forward", () => {
     const response = await call("m1", { conversationId: "conv-1" });
 
     expect(response.status).toBe(200);
+    expect(select).toHaveBeenCalledWith(expect.stringContaining("conversation_id"));
     expect(storage.copy).toHaveBeenCalledWith(
       "conv-2/other/pic.png",
       expect.stringMatching(/^conv-1\/me-id\/.+\.png$/)
@@ -81,6 +85,28 @@ describe("POST /api/messages/[messageId]/forward", () => {
       })
     );
     await expect(response.json()).resolves.toMatchObject({ id: "msg-fwd" });
+  });
+
+  it("refuses to copy an attachment filed outside the source message's conversation", async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    maybeSingle.mockResolvedValue({
+      data: {
+        id: "m1",
+        conversation_id: "conv-2",
+        body: null,
+        image: "https://abc.supabase.co/storage/v1/object/sign/chat-images/conv-9/other/pic.png?token=t",
+        file_url: null,
+        file_name: null,
+        file_size: null,
+      },
+      error: null,
+    });
+
+    const response = await call("m1", { conversationId: "conv-1" });
+
+    expect(response.status).toBe(409);
+    expect(storage.copy).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalledWith("create_message", expect.anything());
   });
 
   it("reports a source message that is missing or unreadable", async () => {

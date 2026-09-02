@@ -18,6 +18,7 @@ const storage = {
 
 const rpc = vi.fn();
 const maybeSingle = vi.fn();
+const select = vi.fn(() => ({ eq: () => ({ maybeSingle }) }));
 
 const request = (body: Record<string, unknown>) =>
   new Request("https://verb.example/api/messages/attachments", {
@@ -29,6 +30,7 @@ const request = (body: Record<string, unknown>) =>
 beforeEach(() => {
   rpc.mockReset();
   maybeSingle.mockReset();
+  select.mockClear();
   storage.upload.mockClear();
   storage.copy.mockClear();
   vi.mocked(safeFetch).mockReset();
@@ -36,9 +38,7 @@ beforeEach(() => {
     auth: { getUser: async () => ({ data: { user: { id: "me-id" } } }) },
     rpc,
     storage: { from: () => storage },
-    from: () => ({
-      select: () => ({ eq: () => ({ maybeSingle }) }),
-    }),
+    from: () => ({ select }),
   } as never);
 });
 
@@ -174,6 +174,7 @@ describe("POST /api/messages/attachments", () => {
     maybeSingle.mockResolvedValue({
       data: {
         id: "m1",
+        conversation_id: "conv-2",
         body: null,
         image: null,
         file_url: "https://abc.supabase.co/storage/v1/object/sign/chat-files/conv-2/other/x-report.pdf?token=t",
@@ -188,6 +189,7 @@ describe("POST /api/messages/attachments", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(select).toHaveBeenCalledWith(expect.stringContaining("conversation_id"));
     expect(storage.copy).toHaveBeenCalledWith(
       "conv-2/other/x-report.pdf",
       expect.stringMatching(/^conv-1\/me-id\/.+-report\.pdf$/)
@@ -202,6 +204,27 @@ describe("POST /api/messages/attachments", () => {
         p_file_size: 1234,
       })
     );
+  });
+
+  it("refuses to copy a file whose URL points at the images bucket", async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    maybeSingle.mockResolvedValue({
+      data: {
+        id: "m1",
+        conversation_id: "conv-2",
+        body: null,
+        image: null,
+        file_url: "https://abc.supabase.co/storage/v1/object/sign/chat-images/conv-2/other/pic.png?token=t",
+        file_name: "pic.png",
+        file_size: 10,
+      },
+      error: null,
+    });
+
+    const response = await POST(request({ conversationId: "conv-1", sourceMessageId: "m1" }));
+
+    expect(response.status).toBe(409);
+    expect(storage.copy).not.toHaveBeenCalled();
   });
 
   it("reports a source message that is missing or unreadable", async () => {
