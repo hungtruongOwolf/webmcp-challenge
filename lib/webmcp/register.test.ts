@@ -15,6 +15,7 @@ describe("createWebmcpTools", () => {
       "search_people",
       "get_my_profile",
       "open_conversation",
+      "start_conversation",
       "create_group",
       "draft_message",
       "send_message",
