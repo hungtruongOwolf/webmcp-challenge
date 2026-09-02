@@ -40,7 +40,7 @@ export const searchMessages: ToolFactory = (ctx) => ({
 
     let dbQuery = ctx.supabase
       .from("messages")
-      .select("body, created_at, sender:profiles!messages_sender_id_fkey (name)")
+      .select("id, body, created_at, sender:profiles!messages_sender_id_fkey (name)")
       .eq("conversation_id", conversationId)
       .is("deleted_at", null)
       .ilike("body", `%${query.replace(/[%_]/g, "")}%`)
@@ -57,7 +57,9 @@ export const searchMessages: ToolFactory = (ctx) => ({
 
     const ordered = [...data].reverse();
     const lines = ordered.map((m: any) =>
-      wrapUntrusted(`${m.sender?.name || "Unknown"} (${relativeTime(m.created_at)}): ${m.body || ""}`)
+      wrapUntrusted(
+        `message_id="${m.id}" ${m.sender?.name || "Unknown"} (${relativeTime(m.created_at)}): ${m.body || ""}`
+      )
     );
 
     return textResult(lines.join("\n"));

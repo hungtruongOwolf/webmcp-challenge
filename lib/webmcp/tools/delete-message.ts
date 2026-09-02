@@ -27,7 +27,7 @@ export const deleteMessage: ToolFactory = (ctx) => ({
     required: ["message_id"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: true },
   execute: async (input) => {
     const messageId = String(input.message_id || "");
     if (!messageId) return errorResult("message_id is required.");

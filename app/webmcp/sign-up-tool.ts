@@ -4,7 +4,7 @@ import {
   createAuthGateway,
 } from "@/app/libs/auth/auth-gateway";
 import { sanitizeAuthReturnPath } from "@/app/libs/auth/return-path";
-import { clampOutput } from "@/lib/webmcp/budget";
+import { clampOutput, errorResult } from "@/lib/webmcp/budget";
 
 /**
  * The only public (signed-out) write tool: creates a Verb account with a
@@ -43,12 +43,8 @@ export const createSignUpTool = (): WebMCPTool => ({
     const name = String(input.name || "").trim();
     const email = String(input.email || "").trim();
 
-    if (!name) {
-      return { content: [{ type: "text", text: "name is required." }], isError: true };
-    }
-    if (!email) {
-      return { content: [{ type: "text", text: "email is required." }], isError: true };
-    }
+    if (!name) return errorResult("name is required.");
+    if (!email) return errorResult("email is required.");
 
     const gateway = createAuthGateway();
     const returnPath = sanitizeAuthReturnPath(

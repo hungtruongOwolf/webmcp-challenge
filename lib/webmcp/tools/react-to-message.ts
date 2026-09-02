@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 import { REACTION_EMOJI, reactionLabel, reactionOptionsList } from "@/lib/webmcp/reactions";
 
 export const reactToMessage: ToolFactory = (ctx) => ({
@@ -29,7 +29,7 @@ export const reactToMessage: ToolFactory = (ctx) => ({
     required: ["emoji"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: true },
   execute: async (input) => {
     let messageId = String(input.message_id || "");
     const conversationId = String(input.conversation_id || "");
@@ -49,12 +49,13 @@ export const reactToMessage: ToolFactory = (ctx) => ({
         .from("messages")
         .select("id, body, image, file_url")
         .eq("conversation_id", conversationId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (latestError) return errorResult(`Could not find the last message: ${latestError.message}`);
-      if (!latest) return errorResult("That conversation has no messages yet.");
+      if (!latest) return errorResult("That conversation has no messages to react to.");
 
       messageId = latest.id;
       targetPreview = latest.image ? "the shared image" : latest.file_url ? "the shared file" : `"${latest.body}"`;
@@ -79,7 +80,7 @@ export const reactToMessage: ToolFactory = (ctx) => ({
         .eq("user_id", ctx.currentUser.id);
 
       if (error) return errorResult(`Could not remove the reaction: ${error.message}`);
-      return textResult(`Removed your ${reactionLabel(emoji)} reaction${targetNote}.`);
+      return textResult(wrapUntrusted(`Removed your ${reactionLabel(emoji)} reaction${targetNote}.`));
     }
 
     const { error } = await ctx.supabase
@@ -90,6 +91,6 @@ export const reactToMessage: ToolFactory = (ctx) => ({
       );
 
     if (error) return errorResult(`Could not react to the message: ${error.message}`);
-    return textResult(`Reacted with ${reactionLabel(emoji)}${targetNote}.`);
+    return textResult(wrapUntrusted(`Reacted with ${reactionLabel(emoji)}${targetNote}.`));
   },
 });

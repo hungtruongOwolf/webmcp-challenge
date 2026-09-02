@@ -57,6 +57,11 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
               return current.map((m) => (m.id === record.id ? { ...m, ...record } : m));
             }
 
+            // An UPDATE for a message id not yet in state (e.g. an edit that
+            // raced the initial page load) has no sender/seen/reactions to
+            // hydrate -- only a real INSERT should be appended as new.
+            if (payload.operation !== "INSERT") return current;
+
             const sender = findUser(record.sender_id);
             if (!sender) return current;
 
