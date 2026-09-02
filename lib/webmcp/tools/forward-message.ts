@@ -32,7 +32,7 @@ export const forwardMessage: ToolFactory = (ctx) => ({
     required: ["message_id", "conversation_id"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: true },
   execute: async (input) => {
     const messageId = String(input.message_id || "");
     const conversationId = String(input.conversation_id || "");
@@ -41,7 +41,7 @@ export const forwardMessage: ToolFactory = (ctx) => ({
     if (!conversationId) return errorResult("conversation_id is required.");
 
     const conversation = await loadConversationHead(ctx.supabase, conversationId).catch(() => null);
-    const title = conversationTitle(conversation, ctx.currentUser.id);
+    const title = wrapUntrusted(conversationTitle(conversation, ctx.currentUser.id));
 
     const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}/forward`, {
       method: "POST",

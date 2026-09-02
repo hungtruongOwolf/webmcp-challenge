@@ -13,7 +13,7 @@ export const listPeople: ToolFactory = (ctx) => ({
     "they are online right now. Use this for 'who can I message' or 'who is online'; " +
     "use search_people when you already know a name.",
   inputSchema: { type: "object", properties: {}, additionalProperties: false },
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async () => {
     const { data, error } = await ctx.supabase
       .from("profiles")

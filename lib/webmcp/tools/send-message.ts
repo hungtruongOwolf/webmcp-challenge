@@ -23,7 +23,7 @@ export const sendMessage: ToolFactory = (ctx) => ({
     required: ["conversation_id"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: true },
   execute: async (input) => {
     const conversationId = String(input.conversation_id || "");
     if (!conversationId) return errorResult("conversation_id is required.");

@@ -19,7 +19,7 @@ export const listConversations: ToolFactory = (ctx) => ({
     },
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input) => {
     const limit = Math.min(
       Math.max(Number(input.limit) || DEFAULT_LIMIT, 1),

@@ -16,7 +16,7 @@ export const readFile: ToolFactory = (ctx) => ({
     required: ["message_id"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input) => {
     const messageId = String(input.message_id || "");
     if (!messageId) return errorResult("message_id is required.");

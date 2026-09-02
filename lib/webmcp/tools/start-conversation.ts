@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 import { findDirectConversation } from "@/lib/webmcp/conversations";
 
 export const startConversation: ToolFactory = (ctx) => ({
@@ -19,7 +19,7 @@ export const startConversation: ToolFactory = (ctx) => ({
     required: ["user_id"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: true },
   execute: async (input) => {
     const userId = String(input.user_id || "");
     if (!userId) return errorResult("user_id is required.");
@@ -33,7 +33,7 @@ export const startConversation: ToolFactory = (ctx) => ({
     if (personError) return errorResult(`Could not look up that person: ${personError.message}`);
     if (!person) return errorResult("No one has that user_id. Use search_people or list_people to find them.");
 
-    const name = person.name || person.email || "them";
+    const name = wrapUntrusted(person.name || person.email || "them");
 
     try {
       const existing = await findDirectConversation(ctx.supabase, userId);

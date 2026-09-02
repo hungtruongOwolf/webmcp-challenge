@@ -94,7 +94,7 @@ export const sendAttachment: ToolFactory = (ctx) => ({
     required: ["conversation_id"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: true },
   execute: async (input) => {
     const conversationId = String(input.conversation_id || "");
     const dataUrl = String(input.data_url || "");
@@ -109,7 +109,7 @@ export const sendAttachment: ToolFactory = (ctx) => ({
     }
 
     const conversation = await loadConversationHead(ctx.supabase, conversationId).catch(() => null);
-    const title = conversationTitle(conversation, ctx.currentUser.id);
+    const title = wrapUntrusted(conversationTitle(conversation, ctx.currentUser.id));
 
     let kind = "attachment";
     let from = "";

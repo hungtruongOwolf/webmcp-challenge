@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 import {
   conversationTitle,
   findDirectConversation,
@@ -26,7 +26,7 @@ export const openConversation: ToolFactory = (ctx) => ({
     },
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input) => {
     const conversationId = String(input.conversation_id || "");
     const userId = String(input.user_id || "");
@@ -55,9 +55,9 @@ export const openConversation: ToolFactory = (ctx) => ({
 
       ctx.navigate(`/conversations/${conversation.id}`);
 
-      const title = conversationTitle(conversation, ctx.currentUser.id);
+      const title = wrapUntrusted(conversationTitle(conversation, ctx.currentUser.id));
       return textResult(
-        `Opened "${title}" (id: ${conversation.id}). Call send_message with this id and a text to reply.`
+        `Opened ${title} (id: ${conversation.id}). Call send_message with this id and a text to reply.`
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

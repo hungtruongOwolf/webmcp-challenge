@@ -18,7 +18,7 @@ export const readLink: ToolFactory = () => ({
     required: ["url"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: true },
+  annotations: { readOnlyHint: true, untrustedContentHint: true },
   execute: async (input) => {
     const url = String(input.url || "");
     if (!url) return errorResult("url is required.");
