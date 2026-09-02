@@ -11,7 +11,16 @@ const beVietnamPro = Be_Vietnam_Pro({
   weight: ["400", "500", "600"],
 });
 
-function ShellInner({ children }: PropsWithChildren) {
+type ShellInnerProps = PropsWithChildren<{
+  title?: string;
+  titleIsFocusTarget?: boolean;
+}>;
+
+function ShellInner({
+  children,
+  title = "Continue with your account",
+  titleIsFocusTarget = false,
+}: ShellInnerProps) {
   const { theme, glass, toggleTheme } = useUiSettings();
 
   return (
@@ -53,6 +62,9 @@ function ShellInner({ children }: PropsWithChildren) {
             width={44}
           />
           <h1
+            {...(titleIsFocusTarget
+              ? { "data-page-title": true, tabIndex: -1 }
+              : {})}
             style={{
               margin: 0,
               fontSize: 21,
@@ -60,9 +72,10 @@ function ShellInner({ children }: PropsWithChildren) {
               letterSpacing: "-0.015em",
               color: "var(--t1)",
               textAlign: "center",
+              outline: "none",
             }}
           >
-            Continue with your account
+            {title}
           </h1>
         </div>
 
@@ -90,9 +103,15 @@ function ShellInner({ children }: PropsWithChildren) {
   );
 }
 
-const AuthShell: React.FC<PropsWithChildren> = ({ children }) => (
+const AuthShell: React.FC<ShellInnerProps> = ({
+  children,
+  title,
+  titleIsFocusTarget,
+}) => (
   <UiSettingsProvider>
-    <ShellInner>{children}</ShellInner>
+    <ShellInner title={title} titleIsFocusTarget={titleIsFocusTarget}>
+      {children}
+    </ShellInner>
   </UiSettingsProvider>
 );
 

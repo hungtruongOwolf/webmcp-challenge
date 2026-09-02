@@ -18,7 +18,7 @@ import {
 } from "@/app/libs/auth/return-path";
 import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
 
-import { primaryButtonStyle } from "./auth-button-style";
+import { cardStyle, primaryButtonStyle } from "./auth-button-style";
 import { EmailAuthForm } from "./email-auth-form";
 
 type Variant = "LOGIN" | "REGISTER";
@@ -26,16 +26,6 @@ type Variant = "LOGIN" | "REGISTER";
 type AuthFormProps = {
   returnPath: string;
   callbackError?: "auth_link_invalid";
-};
-
-const cardStyle: React.CSSProperties = {
-  width: "100%",
-  padding: 24,
-  borderRadius: 22,
-  boxShadow: "var(--e2), inset 0 1px 0 var(--hi)",
-  display: "flex",
-  flexDirection: "column",
-  gap: 16,
 };
 
 const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {

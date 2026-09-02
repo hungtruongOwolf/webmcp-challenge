@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { HiOutlineFingerPrint } from "react-icons/hi2";
 
+import { cardStyle, primaryButtonStyle } from "@/app/(site)/components/auth-button-style";
 import Button from "@/app/components/button";
 import { usePasskeyReadiness } from "@/app/hooks/use-passkey-readiness";
 import {
@@ -95,29 +97,44 @@ export const PasskeyEnrollment = ({
   }, [autoStart, readiness.status]);
 
   return (
-    <div className="mt-8 space-y-4">
-      <p className="text-sm text-gray-600">{readiness.message}</p>
+    <div className="gm-glass2" style={cardStyle}>
+      <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: "var(--t2)" }}>
+        Use your device PIN, a biometric such as your fingerprint or face, or
+        a security key for a faster sign-in next time. You can also add or
+        remove passkeys later in settings.
+      </p>
+      <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
+        {readiness.message}
+      </p>
       {operationError && (
         <div
           ref={operationAlertRef}
           role="alert"
           tabIndex={-1}
-          className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+          className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+          style={{
+            borderRadius: 10,
+            padding: 12,
+            background: "var(--sel)",
+            color: "var(--t1)",
+            fontSize: 13,
+          }}
         >
           {operationError}
         </div>
       )}
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <button
           ref={enrollButtonRef}
           type="button"
           onClick={enroll}
           disabled={isBusy || readiness.status !== "ready"}
-          className="flex justify-center rounded-md bg-sky-500 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-default disabled:opacity-50"
+          style={primaryButtonStyle(isBusy || readiness.status !== "ready")}
         >
+          <HiOutlineFingerPrint size={19} aria-hidden />
           {isBusy ? "Setting up…" : "Set up passkey"}
         </button>
-        <Button type="button" onClick={skip} disabled={isBusy} secondary>
+        <Button type="button" onClick={skip} disabled={isBusy} secondary fullWidth>
           Maybe later
         </Button>
       </div>
