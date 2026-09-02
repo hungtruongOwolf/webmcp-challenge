@@ -69,6 +69,9 @@ export async function POST(req: Request) {
         "body, image, file_name, created_at, sender:profiles!messages_sender_id_fkey (name)"
       )
       .eq("conversation_id", conversationId)
+      // A soft-deleted row keeps its timestamp but has no body; it would
+      // otherwise become an empty transcript line.
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(MAX_MESSAGES);
 
