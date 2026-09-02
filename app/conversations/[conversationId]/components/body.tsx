@@ -258,6 +258,22 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                               <MessageMarkdown text={message.body ?? ""} />
                             </div>
                           )}
+                          {(message.image || message.file_url) && message.body && (
+                            <div
+                              style={{
+                                padding: "7px 12px",
+                                borderRadius: 12,
+                                background: isOwn ? "var(--bub-out)" : "var(--bub-in)",
+                                color: isOwn ? "var(--bub-out-t)" : "var(--bub-in-t)",
+                                fontSize: 14.5,
+                                lineHeight: 1.35,
+                                wordBreak: "break-word",
+                                boxShadow: "0 0 0 0.5px var(--hair)",
+                              }}
+                            >
+                              <MessageMarkdown text={message.body} />
+                            </div>
+                          )}
                           <MessageReactions
                             message={message}
                             currentUserId={currentUser?.id}

@@ -11,6 +11,8 @@ import { startConversation } from "@/lib/webmcp/tools/start-conversation";
 import { createGroup } from "@/lib/webmcp/tools/create-group";
 import { draftMessage } from "@/lib/webmcp/tools/draft-message";
 import { sendMessage } from "@/lib/webmcp/tools/send-message";
+import { sendAttachment } from "@/lib/webmcp/tools/send-attachment";
+import { forwardMessage } from "@/lib/webmcp/tools/forward-message";
 import { deleteConversation } from "@/lib/webmcp/tools/delete-conversation";
 import { describeImage } from "@/lib/webmcp/tools/describe-image";
 import { readFile } from "@/lib/webmcp/tools/read-file";
@@ -34,6 +36,8 @@ const TOOL_FACTORIES = [
   createGroup,
   draftMessage,
   sendMessage,
+  sendAttachment,
+  forwardMessage,
   deleteConversation,
   describeImage,
   readFile,
