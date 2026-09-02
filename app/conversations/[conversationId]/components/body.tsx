@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/app/context/current-user-context";
 import { useUiSettings } from "@/app/context/ui-settings-context";
 import { avatarColors, initialsFromName } from "@/app/libs/avatar-color";
 import { createClient } from "@/app/libs/supabase/client";
+import { withDownload } from "@/app/libs/supabase/attachments";
 import Avatar from "@/app/components/avatar";
 import MessageReactions from "./message-reactions";
 import MessageMarkdown from "./message-markdown";
@@ -219,7 +220,7 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                             </button>
                           ) : message.file_url ? (
                             <a
-                              href={message.file_url}
+                              href={withDownload(message.file_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{

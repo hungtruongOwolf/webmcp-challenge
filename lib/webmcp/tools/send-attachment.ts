@@ -2,6 +2,7 @@ import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 import { conversationTitle, loadConversationHead } from "@/lib/webmcp/conversations";
 import { moveConfirmationPreview } from "@/lib/webmcp/cross-conversation";
+import { safeFileName } from "@/app/libs/supabase/attachments";
 import {
   describeUploadError,
   uploadChatFile,
@@ -39,7 +40,7 @@ function fileFromDataUrl(dataUrl: string, name?: string): File | null {
     return null;
   }
 
-  const fileName = name || `attachment.${MIME_EXTENSIONS[mime] || "bin"}`;
+  const fileName = name ? safeFileName(name) : `attachment.${MIME_EXTENSIONS[mime] || "bin"}`;
   return new File([bytes], fileName, { type: mime });
 }
 

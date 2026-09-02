@@ -127,15 +127,49 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "image/webp": "webp",
   "image/gif": "gif",
   "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
   "text/plain": "txt",
   "text/csv": "csv",
   "application/zip": "zip",
 };
 
-function extensionFor(name: string, contentType: string): string {
-  const fromName = name.includes(".") ? name.split(".").pop() : "";
-  if (fromName) return fromName.toLowerCase();
+/** File extension for a MIME type, or "bin" when the type is not one this app accepts. */
+export function extensionForMime(contentType: string): string {
   return MIME_EXTENSIONS[contentType.split(";")[0].trim().toLowerCase()] || "bin";
+}
+
+const extensionOf = (name: string) =>
+  name.includes(".") ? (name.split(".").pop() || "").toLowerCase() : "";
+
+/**
+ * A file name that cannot leave its folder: no separators, no parent hops,
+ * no control characters. Names come from remote URLs and agent input.
+ */
+export function safeFileName(name: string): string {
+  const cleaned = name
+    .replace(/[\\/]+/g, "_")
+    .replace(/\.{2,}/g, ".")
+    .replace(/[\x00-\x1f\x7f]/g, "")
+    .trim()
+    .replace(/^[._]+|[._]+$/g, "");
+  return cleaned.slice(0, 120) || "attachment";
+}
+
+/** The stored name ends in the extension the validated content type says it should. */
+function nameForType(name: string, contentType: string): string {
+  const ext = extensionForMime(contentType);
+  const safe = safeFileName(name);
+  return extensionOf(safe) === ext ? safe : `${safe}.${ext}`;
+}
+
+/** Signed URLs open inline by default; the flag makes storage send Content-Disposition: attachment. */
+export function withDownload(url: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}download`;
 }
 
 // Same folder convention as the browser upload helper; the storage policies
@@ -242,8 +276,8 @@ export async function storeFetchedAttachment(
   const target = requireAttachmentTarget(input.contentType);
   assertWithinLimit(target.kind, input.bytes.byteLength);
 
-  const name = input.name || `attachment.${extensionFor("", input.contentType)}`;
-  const path = objectPath(target.kind, input.conversationId, input.userId, name, extensionFor(name, input.contentType));
+  const name = nameForType(input.name, input.contentType);
+  const path = objectPath(target.kind, input.conversationId, input.userId, name, extensionForMime(input.contentType));
 
   const { error } = await supabase.storage
     .from(target.bucket)
@@ -277,9 +311,11 @@ export async function copyMessageAttachment(
   const kind: AttachmentKind = source.image ? "image" : "file";
   const object = ownAttachmentObject(sourceUrl, kind, source.conversation_id, 409);
 
-  const baseName = object.path.split("/").pop() || "attachment";
-  const name = source.file_name || baseName;
-  const path = objectPath(kind, targetConversationId, userId, name, extensionFor(baseName, ""));
+  // No content type here; the source object's own extension was set from a
+  // validated type when it was stored, so it is the one to carry over.
+  const baseName = safeFileName(object.path.split("/").pop() || "");
+  const name = safeFileName(source.file_name || baseName);
+  const path = objectPath(kind, targetConversationId, userId, name, extensionOf(baseName) || "bin");
 
   const { error } = await supabase.storage.from(object.bucket).copy(object.path, path);
   if (error) throw new AttachmentError(`Could not copy the attachment: ${error.message}`, 500);

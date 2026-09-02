@@ -5,6 +5,7 @@ import {
   AttachmentError,
   isOwnStorageOrigin,
   ownAttachmentObject,
+  safeFileName,
 } from "@/app/libs/supabase/attachments";
 
 const toProfileDTO = (p: any) =>
@@ -63,8 +64,8 @@ export async function POST(req: Request) {
         p_body: message,
         p_image: image,
         p_file_url: fileUrl,
-        p_file_name: fileName,
-        p_file_size: fileSize,
+        p_file_name: typeof fileName === "string" ? safeFileName(fileName) : undefined,
+        p_file_size: Number.isFinite(fileSize) ? fileSize : undefined,
       },
     );
 
