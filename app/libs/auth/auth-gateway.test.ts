@@ -241,6 +241,16 @@ describe("passkey boundaries", () => {
     expect(client.auth.signOut).toHaveBeenCalledWith({ scope: "global" });
   });
 
+  it("can sign out just this browser when asked", async () => {
+    const client = makeClient();
+
+    await expect(gatewayFor(client).signOut("local")).resolves.toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
+
   it("normalizes a passkey-list failure", async () => {
     const client = makeClient();
     client.auth.passkey.list.mockResolvedValueOnce({
