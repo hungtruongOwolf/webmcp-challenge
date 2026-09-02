@@ -79,9 +79,11 @@ type Pinned = { address: string; family: number };
  * Resolves every record for the host and refuses if any one is private. A
  * host with one public and one private record, or a zero-TTL rebinding
  * record, would otherwise pass a single-address check and then be
- * re-resolved by the fetch itself.
+ * re-resolved by the fetch itself. Every record is returned, not just the
+ * first: with autoSelectFamily the connector tries them in turn, so an
+ * IPv4-only host still reaches a target that lists its AAAA record first.
  */
-async function resolvePinned(url: URL): Promise<Pinned> {
+async function resolvePinned(url: URL): Promise<Pinned[]> {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`Unsupported protocol: ${url.protocol}`);
   }
@@ -92,16 +94,16 @@ async function resolvePinned(url: URL): Promise<Pinned> {
   if (records.some((r) => isPrivateAddress(r.address))) {
     throw new Error("That URL points at a private or internal address.");
   }
-  return records[0];
+  return records.map(({ address, family }) => ({ address, family }));
 }
 
-/** An Agent whose connector only ever sees the address that passed the check. */
-function pinnedDispatcher({ address, family }: Pinned): Agent {
+/** An Agent whose connector only ever sees addresses that passed the check. */
+function pinnedDispatcher(records: Pinned[]): Agent {
   return new Agent({
     connect: {
       lookup: (_hostname, options, callback) => {
-        if (options.all) callback(null, [{ address, family }]);
-        else callback(null, address, family);
+        if (options.all) callback(null, records);
+        else callback(null, records[0].address, records[0].family);
       },
     },
   });
