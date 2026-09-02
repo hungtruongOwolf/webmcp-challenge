@@ -128,7 +128,6 @@ export async function POST(req: Request) {
       return new NextResponse(error.message, { status: error.status });
     }
     console.error("ERROR_MESSAGE_ATTACHMENT:", error);
-    const message = error instanceof Error ? error.message : "Could not send that attachment.";
-    return new NextResponse(message, { status: 500 });
+    return new NextResponse("Could not send that attachment.", { status: 500 });
   }
 }

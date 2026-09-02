@@ -82,7 +82,6 @@ export async function POST(req: Request, { params }: { params: Promise<IParams> 
       return new NextResponse(error.message, { status: error.status });
     }
     console.error("ERROR_MESSAGE_FORWARD:", error);
-    const message = error instanceof Error ? error.message : "Could not forward that message.";
-    return new NextResponse(message, { status: 500 });
+    return new NextResponse("Could not forward that message.", { status: 500 });
   }
 }
