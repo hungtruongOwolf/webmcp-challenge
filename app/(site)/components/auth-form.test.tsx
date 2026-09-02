@@ -516,6 +516,14 @@ describe("AuthForm", () => {
     view.rerender(authFormTree("/users"));
     expect(navigation.replace).not.toHaveBeenCalledWith("/users");
 
+    // The human's own "Sign in with a passkey" button must be disabled
+    // during this window too -- otherwise a click here starts a second,
+    // conflicting WebAuthn ceremony on top of the tool's one already in
+    // flight, in the same tab.
+    expect(
+      screen.getByRole("button", { name: "Sign in with a passkey" })
+    ).toBeDisabled();
+
     passkeyCeremony.resolve({ data: null, error: null });
     await signUpPromise;
 

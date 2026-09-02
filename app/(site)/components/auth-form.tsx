@@ -68,6 +68,13 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
     isPasskeySignupInFlight,
     () => false
   );
+  // Folds a signup in flight from ANY caller (including the `sign_up`
+  // WebMCP tool's own gateway instance) into the same "busy" signal this
+  // component's own isPending already drives -- without this, a human
+  // could click "Sign in with a passkey" while an agent-driven signup
+  // ceremony is mid-flight on the very page they're both looking at,
+  // launching a second, conflicting WebAuthn ceremony in the same tab.
+  const isBusy = isPending || passkeySignupInFlight;
 
   const getGateway = () => {
     gatewayRef.current ??= createAuthGateway();
@@ -153,11 +160,10 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   // render a neutral placeholder instead of the interactive sign-in
   // options for that window, so a fast click can't start a second,
   // pointless sign-in/passkey attempt while the redirect is in flight.
-  // isPending/passkeySignupInFlight both being false is exactly the
-  // condition the auto-redirect effect itself requires, so this mirrors
-  // it rather than introducing a second, possibly-diverging check.
-  const isRedirectingAway =
-    Boolean(currentUser) && !isPending && !passkeySignupInFlight;
+  // !isBusy is exactly the condition the auto-redirect effect itself
+  // requires, so this mirrors it rather than introducing a second,
+  // possibly-diverging check.
+  const isRedirectingAway = Boolean(currentUser) && !isBusy;
 
   return (
     <div className="gm-glass2" style={cardStyle}>
@@ -211,9 +217,9 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
                   ref={passkeyButtonRef}
                   type="button"
                   onClick={signInWithPasskey}
-                  disabled={isPending}
+                  disabled={isBusy}
                   aria-describedby="passkey-method-description"
-                  style={primaryButtonStyle(isPending)}
+                  style={primaryButtonStyle(isBusy)}
                 >
                   <HiOutlineFingerPrint size={19} aria-hidden />
                   Sign in with a passkey
@@ -238,7 +244,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
             gateway={getGateway()}
             onAuthenticated={completeAuthentication}
             onPasskeyEnrollment={offerPasskeyEnrollment}
-            isPending={isPending}
+            isPending={isBusy}
             onSubmissionStart={startSubmission}
             onSubmissionEnd={endSubmission}
             operationError={operationError}
@@ -262,7 +268,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
             <button
               type="button"
               onClick={toggleVariant}
-              disabled={isPending}
+              disabled={isBusy}
               style={{
                 border: "none",
                 padding: 0,
@@ -270,7 +276,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
                 color: "var(--accent-t)",
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: isPending ? "default" : "pointer",
+                cursor: isBusy ? "default" : "pointer",
               }}
             >
               {variant === "LOGIN" ? "Create an account" : "Log in"}

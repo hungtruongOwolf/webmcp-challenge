@@ -30,6 +30,7 @@ export const PasskeyEnrollment = ({
   const readiness = usePasskeyReadiness();
   const gatewayRef = useRef<AuthGateway | null>(gateway ?? null);
   const [isBusy, setIsBusy] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [operationError, setOperationError] = useState<string | null>(null);
   const enrollButtonRef = useRef<HTMLButtonElement>(null);
   const operationAlertRef = useRef<HTMLDivElement>(null);
@@ -59,6 +60,7 @@ export const PasskeyEnrollment = ({
     if (result.ok) {
       announce("Passkey saved. Next time, one action.");
       markFocusAfterAuth();
+      setIsLeaving(true);
       router.replace(destination);
       return;
     }
@@ -73,6 +75,7 @@ export const PasskeyEnrollment = ({
   };
 
   const skip = () => {
+    setIsLeaving(true);
     announce("Passkey setup skipped.");
     markFocusAfterAuth();
     router.replace(destination);
@@ -110,13 +113,13 @@ export const PasskeyEnrollment = ({
           ref={enrollButtonRef}
           type="button"
           onClick={enroll}
-          disabled={isBusy || readiness.status !== "ready"}
-          style={primaryButtonStyle(isBusy || readiness.status !== "ready")}
+          disabled={isBusy || isLeaving || readiness.status !== "ready"}
+          style={primaryButtonStyle(isBusy || isLeaving || readiness.status !== "ready")}
         >
           <HiOutlineFingerPrint size={19} aria-hidden />
           {isBusy ? "Setting up…" : "Set up passkey"}
         </button>
-        <Button type="button" onClick={skip} disabled={isBusy} secondary fullWidth>
+        <Button type="button" onClick={skip} disabled={isBusy || isLeaving} secondary fullWidth>
           Maybe later
         </Button>
       </div>

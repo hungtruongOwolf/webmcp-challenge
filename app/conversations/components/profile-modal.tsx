@@ -26,6 +26,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -81,6 +82,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
   };
 
   const logout = async () => {
+    setIsLoggingOut(true);
     const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
@@ -206,6 +208,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentUse
         title="Log out"
         body="You'll need to sign in again to access your chats."
         confirmLabel="Log out"
+        isLoading={isLoggingOut}
         onConfirm={logout}
         onCancel={() => setConfirmLogout(false)}
       />
