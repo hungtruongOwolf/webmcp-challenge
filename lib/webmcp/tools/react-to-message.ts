@@ -1,5 +1,5 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 import { REACTION_EMOJI, reactionLabel, reactionOptionsList } from "@/lib/webmcp/reactions";
 
 export const reactToMessage: ToolFactory = (ctx) => ({
@@ -29,7 +29,7 @@ export const reactToMessage: ToolFactory = (ctx) => ({
     required: ["emoji"],
     additionalProperties: false,
   },
-  annotations: { readOnlyHint: false },
+  annotations: { readOnlyHint: false, untrustedContentHint: true },
   execute: async (input) => {
     let messageId = String(input.message_id || "");
     const conversationId = String(input.conversation_id || "");
@@ -60,7 +60,11 @@ export const reactToMessage: ToolFactory = (ctx) => ({
       if (!latest) return errorResult("That conversation has no messages yet.");
 
       messageId = latest.id;
-      targetPreview = latest.image ? "the shared image" : latest.file_url ? "the shared file" : `"${latest.body}"`;
+      targetPreview = latest.image
+        ? "the shared image"
+        : latest.file_url
+          ? "the shared file"
+          : wrapUntrusted(`"${latest.body}"`);
     } else {
       const { data: target, error: targetError } = await ctx.supabase
         .from("messages")
