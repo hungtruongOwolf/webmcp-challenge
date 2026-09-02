@@ -423,6 +423,7 @@ describe("WebMCPConnectionProvider", () => {
       expect(modelContext.activeNames()).toContain("draft_message")
     );
     const settledRegistrationCount = modelContext.registrationCount();
+    const settledAbortCount = modelContext.abortedRegistrationCount();
     const registered = modelContext
       .activeTools()
       .find((item) => item.name === "draft_message")!;
@@ -432,7 +433,7 @@ describe("WebMCPConnectionProvider", () => {
     await act(async () => Promise.resolve());
 
     expect(modelContext.registrationCount()).toBe(settledRegistrationCount);
-    expect(modelContext.abortedRegistrationCount()).toBe(0);
+    expect(modelContext.abortedRegistrationCount()).toBe(settledAbortCount);
     expect(parseToolResult(await registered.tool.execute({}))).toEqual({
       seenRoute: "/conversations/abc",
     });

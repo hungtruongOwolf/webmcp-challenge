@@ -83,9 +83,16 @@ export const WebMCPConnectionProvider = ({
     suppliedCurrentUserId === undefined
       ? currentUser?.id ?? null
       : suppliedCurrentUserId;
+  // Resolved once: re-reading document.modelContext on every render would
+  // make the registration effect depend on whatever object the host hands
+  // back, and a host that returns a fresh wrapper per access would then
+  // re-register the whole scope on every navigation.
+  const [discoveredModelContext] = useState(() =>
+    suppliedModelContext === undefined ? getWebMCPModelContext() : null
+  );
   const modelContext =
     suppliedModelContext === undefined
-      ? getWebMCPModelContext()
+      ? discoveredModelContext
       : suppliedModelContext;
   const initialState: ConnectionState =
     currentUserId === null
@@ -94,7 +101,15 @@ export const WebMCPConnectionProvider = ({
   const [state, dispatch] = useReducer(connectionReducer, initialState);
   const [message, setMessage] = useState(() => connectionMessage(initialState));
   const [registrationAttempt, setRegistrationAttempt] = useState(0);
-  const [authenticatedTools, setAuthenticatedTools] = useState<WebMCPTool[]>([]);
+  // Registration is keyed on tool NAMES, not on the array the catalog hands
+  // over: a rebuilt array with the same names must not abort and re-register
+  // (the agent's handles to the old registrations would go stale mid-task).
+  // The signature is a string so a clear-then-install pair inside one commit
+  // lands on an equal value and React skips the re-render entirely. The ref
+  // always holds the newest handlers and the registered wrappers dispatch
+  // through it, so a rebuilt catalog still runs the latest code.
+  const [authenticatedToolSignature, setAuthenticatedToolSignature] = useState("");
+  const authenticatedToolsRef = useRef<Map<string, WebMCPTool>>(new Map());
   const stateRef = useRef(state);
   const pathnameRef = useRef(pathname);
   const snapshotRef = useRef<ConnectionSnapshot>(
@@ -156,7 +171,8 @@ export const WebMCPConnectionProvider = ({
   }, []);
 
   const replaceAuthenticatedTools = useCallback((tools: WebMCPTool[]) => {
-    setAuthenticatedTools(tools);
+    authenticatedToolsRef.current = new Map(tools.map((tool) => [tool.name, tool]));
+    setAuthenticatedToolSignature(tools.map((tool) => tool.name).join("\n"));
   }, []);
 
   useEffect(() => {
@@ -223,12 +239,10 @@ export const WebMCPConnectionProvider = ({
         const registryToolNames = new Set(
           registryTools.map((tool) => tool.name)
         );
-        const tools = [
-          ...registryTools,
-          ...authenticatedTools.filter(
-            (tool) => !registryToolNames.has(tool.name)
-          ),
-        ].map((tool) => ({
+        const catalogTools = Array.from(
+          authenticatedToolsRef.current.values()
+        ).filter((tool) => !registryToolNames.has(tool.name));
+        const tools = [...registryTools, ...catalogTools].map((tool) => ({
           ...tool,
           execute: async (
             input: Record<string, unknown>,
@@ -246,7 +260,10 @@ export const WebMCPConnectionProvider = ({
               };
             }
 
-            return tool.execute(input, agent);
+            const live = registryToolNames.has(tool.name)
+              ? tool
+              : authenticatedToolsRef.current.get(tool.name) ?? tool;
+            return live.execute(input, agent);
           },
         }));
         await Promise.all(
@@ -277,7 +294,7 @@ export const WebMCPConnectionProvider = ({
     };
   }, [
     currentUserId,
-    authenticatedTools,
+    authenticatedToolSignature,
     modelContext,
     registrationAttempt,
     registry,
