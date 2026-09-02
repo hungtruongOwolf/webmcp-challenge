@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { HiOutlineFingerPrint } from "react-icons/hi2";
 
 import Button from "@/app/components/button";
 import Input from "@/app/components/inputs/input";
@@ -10,6 +11,8 @@ import {
   type AuthGateway,
 } from "@/app/libs/auth/auth-gateway";
 import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
+
+import { primaryButtonStyle } from "./auth-button-style";
 
 export type EmailAuthValues = {
   name: string;
@@ -46,9 +49,7 @@ export const EmailAuthForm = ({
 }: EmailAuthFormProps) => {
   const { beginAuthentication, returnToSignedOut } = useWebMCPConnection();
   const [focusSummaryRequested, setFocusSummaryRequested] = useState(false);
-  const [passkeySignup, setPasskeySignup] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
-  const usingPasskeySignup = variant === "REGISTER" && passkeyReady && passkeySignup;
   const {
     register,
     handleSubmit,
@@ -78,30 +79,31 @@ export const EmailAuthForm = ({
     focusSummary();
   };
 
-  const submitPassword = async (values: EmailAuthValues) => {
+  const submitPasskeySignup = async (values: EmailAuthValues) => {
     if (!onSubmissionStart()) return;
 
-    if (usingPasskeySignup) {
-      beginAuthentication();
-      const result = await gateway.signUpWithPasskey({
-        name: values.name,
-        email: values.email,
-        returnPath,
-      });
-      onSubmissionEnd();
-      if (!result.ok) {
-        const message = authFailureMessage(result.code);
-        returnToSignedOut("");
-        onOperationError(message);
-        return;
-      }
-      if (result.value.hasSession) {
-        onPasskeyEnrollment();
-        return;
-      }
-      returnToSignedOut("Check your email to finish creating your account.");
+    beginAuthentication();
+    const result = await gateway.signUpWithPasskey({
+      name: values.name,
+      email: values.email,
+      returnPath,
+    });
+    onSubmissionEnd();
+    if (!result.ok) {
+      const message = authFailureMessage(result.code);
+      returnToSignedOut("");
+      onOperationError(message);
       return;
     }
+    if (result.value.hasSession) {
+      onPasskeyEnrollment();
+      return;
+    }
+    returnToSignedOut("Check your email to finish creating your account.");
+  };
+
+  const submitPassword = async (values: EmailAuthValues) => {
+    if (!onSubmissionStart()) return;
 
     if (!values.password) {
       onSubmissionEnd();
@@ -153,6 +155,10 @@ export const EmailAuthForm = ({
   };
 
   const passwordAction = handleSubmit(submitPassword, focusValidationSummary);
+  const passkeySignupAction = handleSubmit(
+    submitPasskeySignup,
+    focusValidationSummary
+  );
 
   return (
     <form
@@ -206,53 +212,52 @@ export const EmailAuthForm = ({
       />
 
       {variant === "REGISTER" && passkeyReady && (
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 13,
-            color: "var(--t2)",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={passkeySignup}
-            onChange={(event) => setPasskeySignup(event.target.checked)}
+        <>
+          <button
+            type="button"
+            onClick={(event) => {
+              onOperationError(null);
+              void passkeySignupAction(event);
+            }}
             disabled={isPending}
-          />
-          Use a passkey instead of a password
-        </label>
+            aria-describedby="passkey-signup-method-description"
+            style={primaryButtonStyle(isPending)}
+          >
+            <HiOutlineFingerPrint size={19} aria-hidden />
+            Sign up with a passkey
+          </button>
+          <p
+            id="passkey-signup-method-description"
+            style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--t2)" }}
+          >
+            No password needed -- fill in your name and email above, then use
+            your fingerprint, face, device PIN, or a security key.
+          </p>
+        </>
       )}
 
-      {!usingPasskeySignup && (
-        <Input<EmailAuthValues>
-          type="password"
-          id="password"
-          label="Password"
-          autoComplete={variant === "LOGIN" ? "current-password" : "new-password"}
-          register={register}
-          errors={errors}
-          disabled={isPending}
-          registerOptions={
-            variant === "REGISTER"
-              ? {
-                  minLength: {
-                    value: 6,
-                    message: "Password should be at least 6 characters.",
-                  },
-                }
-              : undefined
-          }
-        />
-      )}
+      <Input<EmailAuthValues>
+        type="password"
+        id="password"
+        label="Password"
+        autoComplete={variant === "LOGIN" ? "current-password" : "new-password"}
+        register={register}
+        errors={errors}
+        disabled={isPending}
+        registerOptions={
+          variant === "REGISTER"
+            ? {
+                validate: (value) =>
+                  !value ||
+                  value.length >= 6 ||
+                  "Password should be at least 6 characters.",
+              }
+            : undefined
+        }
+      />
 
       <Button type="submit" disabled={isPending} fullWidth>
-        {variant === "LOGIN"
-          ? "Sign in"
-          : usingPasskeySignup
-            ? "Create account with a passkey"
-            : "Create account"}
+        {variant === "LOGIN" ? "Sign in" : "Create account"}
       </Button>
     </form>
   );

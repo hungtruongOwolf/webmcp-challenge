@@ -18,6 +18,7 @@ import {
 } from "@/app/libs/auth/return-path";
 import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
 
+import { primaryButtonStyle } from "./auth-button-style";
 import { EmailAuthForm } from "./email-auth-form";
 
 type Variant = "LOGIN" | "REGISTER";
@@ -36,22 +37,6 @@ const cardStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 16,
 };
-
-const primaryButtonStyle = (disabled: boolean): React.CSSProperties => ({
-  minHeight: 44,
-  border: "none",
-  borderRadius: 10,
-  background: "var(--accent)",
-  color: "#fff",
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: disabled ? "default" : "pointer",
-  opacity: disabled ? 0.6 : 1,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-});
 
 const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const router = useRouter();

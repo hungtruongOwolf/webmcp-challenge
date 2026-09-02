@@ -242,38 +242,44 @@ describe("EmailAuthForm", () => {
     expect(signUpWithPassword).not.toHaveBeenCalled();
   });
 
-  it("omits the passkey-signup checkbox when passkeys aren't ready", () => {
+  it("omits the passkey sign-up button when passkeys aren't ready", () => {
     renderForm({ variant: "REGISTER", passkeyReady: false });
 
     expect(
-      screen.queryByLabelText("Use a passkey instead of a password")
+      screen.queryByRole("button", { name: "Sign up with a passkey" })
     ).not.toBeInTheDocument();
   });
 
-  it("signs up with a passkey and no password when the checkbox is checked", async () => {
+  it("omits the passkey sign-up button on LOGIN even when passkeys are ready", () => {
+    renderForm({ variant: "LOGIN", passkeyReady: true });
+
+    expect(
+      screen.queryByRole("button", { name: "Sign up with a passkey" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("signs up with a passkey and no password via its own button, leaving the password field untouched", async () => {
     const user = userEvent.setup();
     const signUpWithPasskey = vi.fn(async () => ({
       ok: true as const,
       value: { hasSession: true },
     }));
+    const signUpWithPassword = vi.fn();
     const onPasskeyEnrollment = vi.fn();
     renderForm({
       variant: "REGISTER",
       passkeyReady: true,
-      gateway: createGateway({ signUpWithPasskey }),
+      gateway: createGateway({ signUpWithPasskey, signUpWithPassword }),
       onPasskeyEnrollment,
     });
 
     await user.type(screen.getByLabelText("Name"), "Ada Reader");
     await user.type(screen.getByLabelText("Email"), "new@example.org");
-    await user.click(
-      screen.getByLabelText("Use a passkey instead of a password")
-    );
 
-    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeVisible();
 
     await user.click(
-      screen.getByRole("button", { name: "Create account with a passkey" })
+      screen.getByRole("button", { name: "Sign up with a passkey" })
     );
 
     expect(signUpWithPasskey).toHaveBeenCalledWith({
@@ -281,7 +287,32 @@ describe("EmailAuthForm", () => {
       email: "new@example.org",
       returnPath: "/users",
     });
+    expect(signUpWithPassword).not.toHaveBeenCalled();
     await waitFor(() => expect(onPasskeyEnrollment).toHaveBeenCalledOnce());
+  });
+
+  it("does not block the passkey sign-up button on the still-empty password field", async () => {
+    const user = userEvent.setup();
+    const signUpWithPasskey = vi.fn(async () => ({
+      ok: true as const,
+      value: { hasSession: true },
+    }));
+    renderForm({
+      variant: "REGISTER",
+      passkeyReady: true,
+      gateway: createGateway({ signUpWithPasskey }),
+    });
+
+    await user.type(screen.getByLabelText("Name"), "Ada Reader");
+    await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByRole("button", { name: "Sign up with a passkey" })
+    );
+
+    expect(
+      screen.queryByText("Password should be at least 6 characters.")
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(signUpWithPasskey).toHaveBeenCalledOnce());
   });
 
   it("offers passkey enrollment after registration with a session", async () => {

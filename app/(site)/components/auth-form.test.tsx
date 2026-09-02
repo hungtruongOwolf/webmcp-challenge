@@ -407,10 +407,7 @@ describe("AuthForm", () => {
     await user.type(screen.getByLabelText("Name"), "Ada Reader");
     await user.type(screen.getByLabelText("Email"), "new@example.org");
     await user.click(
-      screen.getByLabelText("Use a passkey instead of a password")
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Create account with a passkey" })
+      screen.getByRole("button", { name: "Sign up with a passkey" })
     );
 
     await waitFor(() =>
