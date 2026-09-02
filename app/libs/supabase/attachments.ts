@@ -160,11 +160,15 @@ export function safeFileName(name: string): string {
   return cleaned.slice(0, 120) || "attachment";
 }
 
+// jpeg and jpg name the same type, so a name carrying either already matches.
+const EXTENSION_ALIASES: Record<string, string> = { jpeg: "jpg" };
+
 /** The stored name ends in the extension the validated content type says it should. */
 export function nameForType(name: string, contentType: string): string {
   const ext = extensionForMime(contentType);
   const safe = safeFileName(name);
-  return extensionOf(safe) === ext ? safe : `${safe}.${ext}`;
+  const own = extensionOf(safe);
+  return own === ext || EXTENSION_ALIASES[own] === ext ? safe : `${safe}.${ext}`;
 }
 
 /** Signed URLs open inline by default; the flag makes storage send Content-Disposition: attachment. */
