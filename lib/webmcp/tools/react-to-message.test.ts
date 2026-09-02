@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { wrapUntrusted } from "@/lib/webmcp/budget";
 import { REACTION_EMOJI, reactionLabel } from "@/lib/webmcp/reactions";
 
 import { reactToMessage } from "./react-to-message";
@@ -42,11 +43,14 @@ describe("react_to_message", () => {
       },
     });
     const { ctx } = createFakeContext(fake.client);
+    const tool = reactToMessage(ctx);
 
-    const result = await reactToMessage(ctx).execute({ conversation_id: "conv-1", emoji });
+    const result = await tool.execute({ conversation_id: "conv-1", emoji });
 
     expect(result.isError).toBeUndefined();
-    expect(resultText(result)).toBe(`Reacted with ${reactionLabel(emoji)} ("hi").`);
+    // The echoed body was written by someone else, so it carries the untrusted marker.
+    expect(tool.annotations).toEqual({ readOnlyHint: false, untrustedContentHint: true });
+    expect(resultText(result)).toBe(`Reacted with ${reactionLabel(emoji)} (${wrapUntrusted('"hi"')}).`);
     expect(fake.opsFor("messages")).toContainEqual(["is", ["deleted_at", null]]);
     expect(fake.opsFor("message_reactions", 1)).toContainEqual([
       "upsert",

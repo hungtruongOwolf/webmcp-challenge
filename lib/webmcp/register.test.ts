@@ -53,6 +53,7 @@ describe("createWebmcpTools", () => {
         "list_conversations",
         "list_people",
         "open_conversation",
+        "react_to_message",
         "read_conversation",
         "read_file",
         "read_link",
