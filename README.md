@@ -1,211 +1,315 @@
-<a name="readme-top"></a>
+<div align="center">
+  <img src="public/images/logo-mark.svg" alt="Verb logo" width="88" height="88" />
 
 # Verb
 
-**Nouns need eyes. Verbs need a voice.**
+### Nouns need eyes. Verbs need a voice.
 
-A real-time messaging app where every meaningful action is also a
-[WebMCP](https://github.com/webmachinelearning/webmcp) tool
-(`document.modelContext`), so a blind or low-vision user can fully operate it
-by talking to an AI agent (ChatGPT Voice, in the desktop app's built-in
-browser) instead of needing to see or parse a screen.
+**An accessible, real-time messenger whose meaningful actions are exposed as WebMCP tools.**
 
-**Live app:** https://messenger-clone-kappa-smoky.vercel.app
-**Repo:** https://github.com/hungtruongOwolf/webmcp-challenge
+A blind or low-vision user can ask an AI agent to find, read, summarize, draft,
+send, react, and navigate without making the agent guess where to click.
 
-![Conversation view](/.github/images/screenshot-light.jpg)
-![Conversation view, dark mode](/.github/images/screenshot-dark.jpg)
+[Open the live app](https://messenger-clone-kappa-smoky.vercel.app) ·
+[View the public repository](https://github.com/hungtruongOwolf/webmcp-challenge) ·
+**Demo video: coming soon**
 
-<!-- Table of Contents -->
-<details>
-<summary><h2 style="display:inline">Table of Contents</h2></summary>
+`WebMCP` · `Next.js 15` · `React 19` · `TypeScript` · `Supabase` · `MIT`
+</div>
 
-- [Why Verb](#why-verb)
-- [Chat features](#chat-features)
-- [WebMCP agent tools](#webmcp-agent-tools)
-- [Security model](#security-model)
-- [Architecture](#architecture)
-- [Getting started](#getting-started)
-- [Testing](#testing)
-- [Folder structure](#folder-structure)
+---
 
-</details>
+## Submission at a glance
 
-## Why Verb
-
-Close your eyes and try to use a chat app.
-
-Not read about it. Actually try it. Find the search bar. Tell which message
-is unread. React to the third message down without knowing where the third
-message down even is. A screen reader gets you partway, reading out labels
-in a layout that was never built with a blind person in mind. It's slow.
-It's exhausting. For a lot of what you'd actually want to do, it just
-doesn't work.
-
-So the current answer, mostly, is: let an AI agent drive the browser for
-you. Point it at the page, ask it to click around, hope it finds the right
-thing. Which sounds helpful until you notice what that actually costs. To
-click around for you, the agent needs your session, sometimes your literal
-password. It's pretending to be you now, and if it clicks the wrong thing
-(or a message in your inbox tricks it into clicking the wrong thing) that
-happens under your name, with your access. That's not accessibility. That's
-a liability wearing an accessibility costume.
-
-Verb does it the other way. Sign in once with a passkey. A fingerprint, a
-face scan, a device PIN, nothing to type or read aloud. From there, the page
-itself tells the agent exactly what it's allowed to do: send this message,
-react to that one, search this conversation, describe this photo, catch me
-up on a thread I haven't opened in a week. Not "click here." A real action,
-called directly, inside the session you already signed into. No password
-changes hands. No guessing at pixels. We even seed a message with a prompt
-injection in it, hidden text trying to hijack the agent into doing something
-else, just to check: the agent still can't do anything your account
-couldn't already do, because the database's own permissions are the wall.
-Not the model's good behavior.
-
-Nouns still need eyes. A photo, a wall of text, someone still has to see it,
-or someone still has to describe it out loud.
-
-Verbs don't. Send. React. Search. Catch up. Once those are things you can
-ask for instead of things you have to click, they stop needing sight at
-all.
-
-They just need a voice.
-
-## Chat features
-
-- 1:1 and group conversations, real-time messages, typing/seen state
-- Image and file attachments (private Storage buckets, signed URLs)
-- Message reactions (6 preset emoji) and stickers (20 preset emoji, sent as a
-  standalone oversized message)
-- Drafts that persist per conversation and resurface when you come back
-- Search within a conversation, and one-shot AI summaries that combine
-  read *and* unread history into a single coherent recap
-- AI image description for screen-reader / low-vision users
-- Passkey, email-link, and password sign-in; passkeys can be added/removed
-  from account settings on any signed-in device
-
-## WebMCP agent tools
-
-18 tools, registered from `lib/webmcp/register.ts`:
-
-| Tool | What it does |
+| Requirement | Link or status |
 |---|---|
-| `list_conversations` | List the signed-in user's conversations |
-| `read_conversation` | Read a conversation's recent messages, paginated |
-| `search_messages` | Find a word/phrase in one conversation, optional date range |
-| `search_people` | Find someone by name or email |
-| `get_my_profile` | The signed-in user's own name/email/id |
-| `open_conversation` | Navigate the UI to a conversation |
-| `create_group` | Create a group chat, resolving names/emails automatically |
-| `draft_message` | Stage a reply without sending it |
-| `send_message` | Send a message (two-call pattern with `draft_message`) |
-| `delete_conversation` | Leave a conversation, or delete it if you're the last member |
-| `describe_image` | Vision-model description of a shared photo, the core accessibility feature |
-| `read_file` | Read the contents of a shared file |
-| `read_link` | Fetch and summarize a URL shared in chat |
-| `sign_out` | End the session |
-| `setup_passkey` | Walk through enrolling a passkey |
-| `react_to_message` | Add/remove one of 6 preset emoji reactions |
-| `send_sticker` | Send one of 20 preset emoji as a standalone sticker |
-| `summarize_conversation` | One coherent narrative summary, read + unread combined |
+| Working application | [messenger-clone-kappa-smoky.vercel.app](https://messenger-clone-kappa-smoky.vercel.app) |
+| Demo video | **Coming soon** — public YouTube link will be added here |
+| Public source code | [github.com/hungtruongOwolf/webmcp-challenge](https://github.com/hungtruongOwolf/webmcp-challenge) |
+| Open-source license | [MIT License](LICENSE) |
+| WebMCP implementation | [Registration lifecycle](app/webmcp/connection-provider.tsx) · [tool catalog](lib/webmcp/register.ts) |
 
-Every tool response goes through a shared budget clamp (`lib/webmcp/budget.ts`)
-so nothing blows past what an agent should reasonably read back, and
-destructive actions (leaving/deleting a conversation) require a second,
-explicit `confirm: true` call rather than popping an in-page dialog nobody
-watching a voice session could click.
+## Judge quick start
 
-## Security model
+1. Open the [live app](https://messenger-clone-kappa-smoky.vercel.app) in
+   ChatGPT's in-app browser, or in Google Chrome 149+ with
+   `chrome://flags/#enable-webmcp-testing` enabled.
+2. Sign in or create an account. If judging credentials are supplied with the
+   Devpost submission, use those credentials.
+3. Confirm that the page reports **WebMCP connected**.
+4. Ask the agent to try a few natural-language tasks:
 
-WebMCP tools execute in-browser under the signed-in user's real Supabase
-session: never a service key, never a credential handed to the agent.
-**Postgres row-level security is the actual trust boundary**, not the
-agent's good behavior: even a fully prompt-injected agent (the demo seeds a
-message containing an injected instruction the agent must read but not obey)
-cannot read or write anything the signed-in user's own RLS policies don't
-already allow.
+   > Check my Verb connection, list my conversations, and catch me up on
+   > the most recent one.
+
+   > Find messages about the launch, then draft a reply for me. Let me review
+   > it before sending.
+
+   > Describe the latest image in this conversation and react to the message
+   > with a heart.
+
+5. Open the in-app **WebMCP activity** panel to see tool registration and calls
+   as they happen.
+
+The project follows the browser setup recommended in the
+[WebMCP Challenge resources](https://webmcp.devpost.com/resources).
+
+## Why Verb is a strong fit for WebMCP
+
+Close your eyes and try to operate a messaging app. Finding the unread thread,
+locating the right control, reacting to a particular message, or understanding
+an image can turn a simple conversation into a long navigation exercise.
+
+Traditional browser agents do not fully solve that problem. They still inspect
+screens, infer intent from labels and pixels, and attempt a sequence of clicks.
+That approach is fragile, especially when the screen changes or user-generated
+content contains misleading instructions.
+
+WebMCP gives the page a semantic action layer. Verb does not ask the agent to
+*find the send button*. It registers a typed `send_message` action. It does not
+ask the agent to *scan the sidebar*. It provides `list_conversations`. The agent
+works with the signed-in user's real session, and the application remains the
+authority for validation, permissions, and side effects.
+
+That is why this use case fits WebMCP so well: messaging is made of verbs.
+Once those verbs are explicit, they no longer require sight, precise pointer
+control, or knowledge of the current visual layout.
+
+## A better human-agent experience
+
+WebMCP lets the human express intent while the application supplies safe,
+structured capabilities.
+
+| The person asks… | The agent can… | The experience improves because… |
+|---|---|---|
+| “What did I miss?” | List, read, and summarize the relevant conversation | The user hears one useful recap instead of traversing a message history |
+| “Did anyone mention the launch date?” | Search one conversation with an optional date range | The answer comes from structured results, not visual page scanning |
+| “Reply that Friday works.” | Save a draft, let the user review it, then send it | Composition and execution are separate, preserving human control |
+| “What is in the photo?” | Retrieve the authorized image and ask a vision model to describe it | Visual content becomes accessible inside the same conversation flow |
+| “Start a group with Maya and Tony.” | Resolve people and create the group | A multi-screen workflow becomes one clear request |
+| “Leave this group.” | Explain the impact and require a second confirmed call | A destructive action stays deliberate and auditable |
+
+Before WebMCP, completing these flows by voice required a screen-driving agent
+to repeatedly interpret the interface. With Verb, people choose the goal and
+retain control; agents combine explicit tools to carry it out.
+
+## What the app includes
+
+- One-to-one and group conversations with real-time messages, typing state,
+  seen state, and sidebar updates
+- Private image and file attachments backed by signed URLs
+- Message search, reactions, and 20 emoji stickers
+- Per-conversation drafts that persist when the user navigates away
+- AI summaries that combine read and unread history into one coherent recap
+- AI image descriptions for blind and low-vision users
+- Passkey and password authentication
+- Keyboard and screen-reader-conscious authentication and navigation
+
+## WebMCP implementation
+
+Verb uses the browser's `document.modelContext` API directly. A public
+`get_connection_status` tool is available before authentication. After sign-in,
+the connection provider registers 18 session-scoped tools and removes them with
+an `AbortSignal` when the session changes.
+
+The real registration lifecycle lives in
+[`app/webmcp/connection-provider.tsx`](app/webmcp/connection-provider.tsx).
+In simplified form, each tool is registered like this:
+
+```ts
+const controller = new AbortController();
+
+await document.modelContext.registerTool(
+  {
+    name: "get_connection_status",
+    description: "Report whether the page is signed in and agent tools are connected.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: true,
+      untrustedContentHint: false,
+    },
+    execute: async () => ({
+      content: [{ type: "text", text: JSON.stringify(connectionState) }],
+    }),
+  },
+  { signal: controller.signal }
+);
+```
+
+The authenticated catalog is assembled in
+[`lib/webmcp/register.ts`](lib/webmcp/register.ts). Each tool has a focused
+description, JSON input schema, behavioral annotations, and an `execute`
+function that uses the current user's browser session.
+
+```text
+Human voice or text
+        ↓
+AI agent chooses a registered tool
+        ↓
+document.modelContext.registerTool(...)
+        ↓
+Verb validates input and uses the signed-in Supabase session
+        ↓
+Postgres row-level security authorizes the operation
+        ↓
+Small, structured result returns to the agent and activity panel
+```
+
+### Registered tools
+
+There are **19 registered tools in an authenticated session**: one public
+connection tool plus 18 messaging tools.
+
+| Category | Tool | Purpose |
+|---|---|---|
+| Connection | `get_connection_status` | Report sign-in and WebMCP connection state |
+| Discover | `list_conversations` | List the user's conversations |
+| Discover | `read_conversation` | Read recent messages with pagination |
+| Discover | `search_messages` | Search a conversation with an optional date range |
+| Discover | `search_people` | Find a person by name or email |
+| Discover | `get_my_profile` | Return the signed-in user's profile |
+| Navigate | `open_conversation` | Open or start a one-to-one conversation |
+| Compose | `draft_message` | Save a draft without sending it |
+| Compose | `send_message` | Send the currently saved draft |
+| Compose | `react_to_message` | Add or remove one of six reactions |
+| Compose | `send_sticker` | Send one of 20 emoji stickers |
+| Organize | `create_group` | Create a group from names, emails, or IDs |
+| Organize | `delete_conversation` | Leave or delete a conversation after explicit confirmation |
+| Understand | `summarize_conversation` | Produce one read-and-unread narrative summary |
+| Understand | `describe_image` | Describe an authorized image with a vision model |
+| Understand | `read_file` | Read an authorized shared file |
+| Understand | `read_link` | Fetch text from a link shared in a message |
+| Account | `setup_passkey` | Guide the user through passkey enrollment |
+| Account | `sign_out` | End the current session |
+
+## Safety and trust boundaries
+
+Verb treats the application and database as the authority, not the agent.
+
+- **Session-scoped authority:** tools run in the browser with the signed-in
+  user's Supabase session. No service key or password is handed to the agent.
+- **Database enforcement:** Postgres row-level security controls which
+  conversations, messages, profiles, and files the user can access.
+- **Untrusted content stays data:** message bodies are labeled as untrusted
+  before returning to the agent, reducing the chance that prompt-injection
+  text is mistaken for an instruction.
+- **Bounded output:** shared result clamping keeps tool responses within a
+  1,500-character budget.
+- **Deliberate writes:** sending uses a draft-then-send pattern. Leaving or
+  deleting a conversation requires a second call with `confirm: true` after
+  the user agrees.
+- **Lifecycle cleanup:** registration uses abort signals so tools from an old
+  or signed-out session do not remain active.
+
+## Screenshots
+
+| Light mode | Dark mode |
+|---|---|
+| ![Verb conversation view in light mode](.github/images/screenshot-light.jpg) | ![Verb conversation view in dark mode](.github/images/screenshot-dark.jpg) |
 
 ## Architecture
 
-- **Next.js 15 App Router, React 19, TypeScript, Tailwind.**
-- **Supabase Postgres** is the only backend: schema + row-level security in
-  `supabase/migrations/`. A handful of `SECURITY DEFINER` RPCs handle
-  operations that need to see across a membership boundary (creating a
-  conversation, leaving one); everything else queries with the user's own
-  session.
-- **Realtime** is DB-trigger-driven: triggers call
-  `realtime.broadcast_changes(...)` on `conversation:<uuid>` (everyone in
-  that conversation) and `user:<uuid>` (one user's own sidebar/inbox) topics,
-  so the UI updates from the database, not from whichever API route happened
-  to handle the write.
-- **Storage** (`chat-images`, `chat-files`, `avatars`) is three private
-  buckets; the app hands out long-lived signed URLs rather than making
-  anything public, with folder-scoped RLS as the real access boundary.
-- **Auth** supports passkeys (`@supabase/supabase-js`'s experimental WebAuthn
-  API, pinned to an exact version, see `app/libs/supabase/client.ts`), email
-  magic links, and passwords, built to stay usable via keyboard and screen
-  reader throughout (`docs/superpowers/` has the original design notes).
+| Layer | Implementation |
+|---|---|
+| Web application | Next.js 15 App Router, React 19, TypeScript, Tailwind CSS |
+| WebMCP lifecycle | Connection provider, public status tool, authenticated catalog, abort-based cleanup |
+| Data and authorization | Supabase Postgres with row-level security and focused RPCs |
+| Realtime | Database-triggered broadcasts on conversation and per-user topics |
+| File storage | Private `chat-images`, `chat-files`, and `avatars` buckets with signed URLs |
+| Authentication | Passkeys through Supabase WebAuthn and passwords |
+| AI features | Configurable Anthropic, Gemini, or OpenAI provider for image descriptions and summaries |
 
-## Getting started
+### Project map
 
-1. Node 20+, npm.
-2. `npm install` (a repo-level `.npmrc` already sets `legacy-peer-deps=true`
-   for a `react-select`/`@headlessui` peer-range mismatch that will resolve
-   itself once those packages catch up to React 19).
-3. Copy `.env.example` to `.env.local` and fill in:
-   - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`, from your
-     Supabase project's Settings → API.
-   - `NEXT_PUBLIC_APP_ORIGIN` / `NEXT_PUBLIC_PASSKEY_RP_ID`, the exact origin
-     you'll run on and its hostname. Locally that's `http://localhost:3000`
-     and `localhost`; production needs a real HTTPS origin, and changing this
-     value later invalidates every passkey already enrolled against it.
-   - At least one of `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` /
-     `OPENAI_API_KEY`, for `describe_image` and `summarize_conversation`.
-4. Apply the schema: `npx supabase link --project-ref <your-project-ref>`
-   then `npx supabase db push`.
-5. `npm run dev`.
+```text
+app/
+  api/                         messages, conversations, files, AI routes
+  components/                  accessible UI and WebMCP activity panel
+  conversations/              inbox and conversation views
+  libs/                        Supabase, authentication, uploads, AI clients
+  webmcp/                      browser API, connection lifecycle, tool registry
+lib/webmcp/
+  tools/                       one file per authenticated WebMCP tool
+  register.ts                  assembles the authenticated catalog
+  budget.ts                    output clamping and untrusted-content wrapping
+supabase/migrations/           schema, RLS policies, triggers, storage, RPCs
+e2e/                           Playwright accessibility coverage
+tests/                         shared Vitest setup
+```
 
-`npm run build` also runs `verify:passkey-config`
-(`scripts/check-passkey-config.mjs`), which fails the build if
-`NEXT_PUBLIC_APP_ORIGIN`'s hostname doesn't exactly match
-`NEXT_PUBLIC_PASSKEY_RP_ID`, or if production is pointed at `localhost`.
+## Run locally
 
-## Testing
+### Prerequisites
+
+- Node.js 20+
+- npm
+- A Supabase project
+- At least one Anthropic, Gemini, or OpenAI API key for AI features
+
+### Setup
 
 ```bash
-npm test              # vitest, component/unit
-npm run test:e2e      # playwright
-npm run verify:passkey-config
+git clone https://github.com/hungtruongOwolf/webmcp-challenge.git
+cd webmcp-challenge
+npm install
+cp .env.example .env.local
 ```
 
-Playwright's accessible-auth spec needs a disposable Supabase test account via
-`E2E_USER_EMAIL` / `E2E_USER_PASSWORD`. Keep those server-side, never behind
-a `NEXT_PUBLIC_` prefix.
+Fill in `.env.local`:
 
-## Folder structure
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
 
-```
-messenger-clone/
-  app/
-    (site)/                  landing + sign-in
-    actions/                 server-side data fetchers
-    api/                     conversations, messages, describe, summarize, ...
-    auth/                    passkey enrollment, auth callback
-    components/              shared UI (auth, accessibility, inputs, modals)
-    context/                 current-user, WebMCP connection, confirm bridge
-    conversations/           conversation list + [conversationId] thread UI
-    hooks/                   use-conversation, use-passkey-readiness, ...
-    libs/                    supabase client/server/upload, auth gateway
-    webmcp/                  WebMCP connection provider + tool registry glue
-  lib/webmcp/
-    tools/                   one file per agent tool
-    register.ts              wires every tool into the WebMCP registry
-    budget.ts                shared output-size clamp
-  supabase/migrations/       schema, RLS, triggers, RPCs (15 migrations)
-  docs/superpowers/          original accessible-auth design/plan docs
-  e2e/, tests/               Playwright spec, Vitest setup
+NEXT_PUBLIC_APP_ORIGIN=http://localhost:3000
+NEXT_PUBLIC_PASSKEY_RP_ID=localhost
+
+# Add at least one provider key.
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+OPENAI_API_KEY=
 ```
 
-<br />
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+Apply the database migrations and start the application:
+
+```bash
+npx supabase link --project-ref <your-project-ref>
+npx supabase db push
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+> [!IMPORTANT]
+> `NEXT_PUBLIC_APP_ORIGIN` and `NEXT_PUBLIC_PASSKEY_RP_ID` must describe the
+> same host. Production passkeys also require HTTPS. `npm run build` verifies
+> this configuration and rejects a production origin that points to localhost.
+
+## Test and build
+
+```bash
+npm test                       # Vitest unit and component tests
+npm run test:e2e               # Playwright end-to-end tests
+npm run verify:passkey-config  # WebAuthn origin/RP validation
+npm run build                  # production build
+```
+
+The accessible-auth Playwright spec uses a disposable Supabase account through
+`E2E_USER_EMAIL` and `E2E_USER_PASSWORD`. Keep both variables server-side;
+never expose them with a `NEXT_PUBLIC_` prefix.
+
+## License
+
+Verb is open-source software available under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+  Built for the <a href="https://webmcp.devpost.com/">WebMCP Challenge</a>.
+  <br />
+  <strong>Nouns need eyes. Verbs need a voice.</strong>
+</div>
