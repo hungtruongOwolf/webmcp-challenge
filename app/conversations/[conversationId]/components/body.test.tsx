@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { FullMessageType, User } from "@/app/types";
 
@@ -45,6 +45,11 @@ const message = (overrides: Partial<FullMessageType>): FullMessageType => ({
 });
 
 describe("Body", () => {
+  beforeAll(() => {
+    // jsdom has no layout, so the auto-scroll hook needs a stand-in.
+    Element.prototype.scrollIntoView = vi.fn();
+  });
+
   it("marks an edited message", () => {
     render(
       <Body

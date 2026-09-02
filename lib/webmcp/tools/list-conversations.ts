@@ -31,7 +31,7 @@ export const listConversations: ToolFactory = (ctx) => ({
       .select(
         `id, name, is_group, last_message_at,
          members:conversation_members ( profile:profiles (*) ),
-         messages ( id, body, image, created_at, sender_id, seen:message_seen ( user_id ) )`
+         messages ( id, body, image, created_at, deleted_at, sender_id, seen:message_seen ( user_id ) )`
       )
       .order("last_message_at", { ascending: false })
       .limit(limit);
@@ -49,7 +49,13 @@ export const listConversations: ToolFactory = (ctx) => ({
         a.created_at.localeCompare(b.created_at)
       );
       const last = msgs[msgs.length - 1];
-      const preview = last ? (last.image ? "[image]" : last.body || "") : "Started a conversation";
+      const preview = last
+        ? last.deleted_at
+          ? "[message deleted]"
+          : last.image
+            ? "[image]"
+            : last.body || ""
+        : "Started a conversation";
       const when = last ? relativeTime(last.created_at) : relativeTime(c.last_message_at);
 
       const unreadCount = msgs.filter(

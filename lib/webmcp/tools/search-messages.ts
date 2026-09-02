@@ -42,6 +42,7 @@ export const searchMessages: ToolFactory = (ctx) => ({
       .from("messages")
       .select("body, created_at, sender:profiles!messages_sender_id_fkey (name)")
       .eq("conversation_id", conversationId)
+      .is("deleted_at", null)
       .ilike("body", `%${query.replace(/[%_]/g, "")}%`)
       .order("created_at", { ascending: false })
       .limit(MAX_RESULTS);

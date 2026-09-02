@@ -50,7 +50,11 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
           const record = payload.record;
 
           setMessages((current) => {
-            if (find(current, { id: record.id })) return current;
+            // An UPDATE (edit or soft delete) carries the whole row; merge it
+            // over the one we have so sender/seen/reactions survive.
+            if (find(current, { id: record.id })) {
+              return current.map((m) => (m.id === record.id ? { ...m, ...record } : m));
+            }
 
             const sender = findUser(record.sender_id);
             if (!sender) return current;
@@ -58,7 +62,7 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
             return [...current, { ...record, sender, seen: [], reactions: [] } as FullMessageType];
           });
 
-          if (payload.record.sender_id) {
+          if (payload.record.sender_id && payload.operation === "INSERT") {
             axios.post(`/api/conversations/${conversationId}/seen`);
           }
         } else if (table === "message_seen" && payload.record) {

@@ -45,7 +45,7 @@ export const readConversation: ToolFactory = (ctx) => ({
     let query = ctx.supabase
       .from("messages")
       .select(
-        "id, body, image, file_url, file_name, created_at, sender:profiles!messages_sender_id_fkey (name), reactions:message_reactions ( emoji, user:profiles!message_reactions_user_id_fkey (name) )"
+        "id, body, image, file_url, file_name, created_at, edited_at, deleted_at, sender:profiles!messages_sender_id_fkey (name), reactions:message_reactions ( emoji, user:profiles!message_reactions_user_id_fkey (name) )"
       )
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
@@ -70,11 +70,13 @@ export const readConversation: ToolFactory = (ctx) => ({
     const lines = ordered.map((m: any) => {
       const who = m.sender?.name || "Unknown";
       const when = relativeTime(m.created_at);
-      const body = m.image
-        ? `[shared an image -- describe_image message_id="${m.id}"]`
-        : m.file_url
-          ? `[shared a file "${m.file_name}" -- read_file message_id="${m.id}"]`
-          : m.body || "";
+      const body = m.deleted_at
+        ? "[message deleted]"
+        : m.image
+          ? `[shared an image -- describe_image message_id="${m.id}"]`
+          : m.file_url
+            ? `[shared a file "${m.file_name}" -- read_file message_id="${m.id}"]`
+            : `${m.body || ""}${m.edited_at ? " (edited)" : ""}`;
 
       const byEmoji = new Map<string, string[]>();
       for (const r of m.reactions ?? []) {

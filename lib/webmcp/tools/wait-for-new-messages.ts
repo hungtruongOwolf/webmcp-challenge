@@ -98,7 +98,10 @@ function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null
 
     channel
       .on("broadcast", { event: "*" }, ({ payload }) => {
+        // Edits, deletions, and the read-receipt re-broadcast all carry an
+        // old_record; only a genuine insert is a new message.
         if (payload?.table !== "messages" || !isIncoming(payload.record)) return;
+        if (payload.operation !== "INSERT" || payload.old_record) return;
         if (accept(payload.record)) finish([payload.record]);
       })
       .subscribe((status) => {

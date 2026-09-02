@@ -13,6 +13,8 @@ import { draftMessage } from "@/lib/webmcp/tools/draft-message";
 import { sendMessage } from "@/lib/webmcp/tools/send-message";
 import { sendAttachment } from "@/lib/webmcp/tools/send-attachment";
 import { forwardMessage } from "@/lib/webmcp/tools/forward-message";
+import { editMessage } from "@/lib/webmcp/tools/edit-message";
+import { deleteMessage } from "@/lib/webmcp/tools/delete-message";
 import { deleteConversation } from "@/lib/webmcp/tools/delete-conversation";
 import { describeImage } from "@/lib/webmcp/tools/describe-image";
 import { readFile } from "@/lib/webmcp/tools/read-file";
@@ -38,6 +40,8 @@ const TOOL_FACTORIES = [
   sendMessage,
   sendAttachment,
   forwardMessage,
+  editMessage,
+  deleteMessage,
   deleteConversation,
   describeImage,
   readFile,

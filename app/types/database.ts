@@ -181,6 +181,8 @@ export type Database = {
           body: string | null
           conversation_id: string
           created_at: string
+          deleted_at: string | null
+          edited_at: string | null
           file_name: string | null
           file_size: number | null
           file_url: string | null
@@ -192,6 +194,8 @@ export type Database = {
           body?: string | null
           conversation_id: string
           created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null
@@ -203,6 +207,8 @@ export type Database = {
           body?: string | null
           conversation_id?: string
           created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null

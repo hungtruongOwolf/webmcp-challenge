@@ -117,8 +117,12 @@ export function ConversationsProvider({
           const record = payload.record;
           const isFromSomeoneElse = record.sender_id !== currentUser.id;
           const isElsewhere = record.conversation_id !== conversationIdRef.current;
+          // Only a genuine insert has no old_record: edits, deletions, and
+          // the read-receipt trigger (which re-broadcasts an existing row)
+          // all carry one and must not be announced as new messages.
+          const isNewMessage = payload.operation !== "UPDATE" && !payload.old_record;
 
-          if (isFromSomeoneElse && isElsewhere) {
+          if (isFromSomeoneElse && isElsewhere && isNewMessage) {
             const convo = conversationsRef.current.find(
               (c) => c.id === record.conversation_id
             );

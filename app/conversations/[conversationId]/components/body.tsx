@@ -180,7 +180,21 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                           className="gm-msg-row"
                           style={{ width: "auto", maxWidth: "78%", display: "flex", flexDirection: "column", gap: 3, alignItems: isOwn ? "flex-end" : "flex-start" }}
                         >
-                          {message.image ? (
+                          {message.deleted_at ? (
+                            <div
+                              style={{
+                                padding: "9px 13px",
+                                borderRadius: radius,
+                                background: "var(--hover)",
+                                color: "var(--t3)",
+                                fontSize: 14,
+                                fontStyle: "italic",
+                                boxShadow: "0 0 0 0.5px var(--hair)",
+                              }}
+                            >
+                              This message was deleted.
+                            </div>
+                          ) : message.image ? (
                             <button
                               type="button"
                               onClick={() => onOpenImage(message.image!)}
@@ -274,12 +288,19 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                               <MessageMarkdown text={message.body} />
                             </div>
                           )}
-                          <MessageReactions
-                            message={message}
-                            currentUserId={currentUser?.id}
-                            isOwn={isOwn}
-                            onReact={(emoji) => handleReact(message, emoji)}
-                          />
+                          {message.edited_at && !message.deleted_at && (
+                            <span style={{ padding: "0 4px", fontSize: 11, color: "var(--t3)" }}>
+                              (edited)
+                            </span>
+                          )}
+                          {!message.deleted_at && (
+                            <MessageReactions
+                              message={message}
+                              currentUserId={currentUser?.id}
+                              isOwn={isOwn}
+                              onReact={(emoji) => handleReact(message, emoji)}
+                            />
+                          )}
                         </div>
                       );
                     })}
