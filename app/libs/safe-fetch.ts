@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const MAX_REDIRECTS = 3;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -11,43 +12,102 @@ const DEFAULT_TIMEOUT_MS = 10_000;
  * this server fetches it, to stop it reaching localhost, a cloud metadata
  * endpoint, or another internal service.
  */
-function isPrivateAddress(ip: string): boolean {
+function isPrivateIPv4(ip: string): boolean {
+  const [a, b] = ip.split(".").map(Number);
+  if (a === 0) return true; // this network
+  if (a === 10) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true; // link-local, cloud metadata
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 198 && (b === 18 || b === 19)) return true; // benchmarking
+  if (a >= 224) return true; // multicast, reserved, broadcast
+  return false;
+}
+
+/** Expands an IPv6 literal (with :: and an optional dotted IPv4 tail) into 8 groups. */
+function ipv6Groups(ip: string): number[] | null {
+  let text = ip;
+  const dotted = text.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const [o1, o2, o3, o4] = dotted[1].split(".").map(Number);
+    text = text.slice(0, -dotted[1].length) + `${((o1 << 8) | o2).toString(16)}:${((o3 << 8) | o4).toString(16)}`;
+  }
+
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - head.length - tail.length;
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null;
+
+  const groups = [...head, ...Array(missing).fill("0"), ...tail].map((g) => parseInt(g, 16));
+  return groups.some(Number.isNaN) ? null : groups;
+}
+
+const embeddedIPv4 = (hi: number, lo: number) =>
+  `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+
+function isPrivateIPv6(ip: string): boolean {
+  const g = ipv6Groups(ip);
+  if (!g) return true;
+
+  const leadingZeros = g.slice(0, 5).every((x) => x === 0);
+  if (leadingZeros && g[5] === 0 && g[6] === 0 && (g[7] === 0 || g[7] === 1)) return true; // :: and ::1
+  if (leadingZeros && g[5] === 0xffff) return isPrivateIPv4(embeddedIPv4(g[6], g[7])); // IPv4-mapped
+  if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) {
+    return isPrivateIPv4(embeddedIPv4(g[6], g[7])); // NAT64
+  }
+  if (g[0] === 0x2002) return isPrivateIPv4(embeddedIPv4(g[1], g[2])); // 6to4
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // link-local
+  if ((g[0] & 0xfe00) === 0xfc00) return true; // unique local
+  if ((g[0] & 0xff00) === 0xff00) return true; // multicast
+  return false;
+}
+
+export function isPrivateAddress(ip: string): boolean {
   const kind = isIP(ip);
-
-  if (kind === 4) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 0) return true;
-    return false;
-  }
-
-  if (kind === 6) {
-    const norm = ip.toLowerCase();
-    if (norm === "::1") return true;
-    if (norm.startsWith("fe80:") || norm.startsWith("fc") || norm.startsWith("fd")) return true;
-    if (norm.startsWith("::ffff:")) return isPrivateAddress(norm.slice(7));
-    return false;
-  }
-
+  if (kind === 4) return isPrivateIPv4(ip);
+  if (kind === 6) return isPrivateIPv6(ip);
   return true;
 }
 
-async function assertSafeUrl(url: URL): Promise<void> {
+type Pinned = { address: string; family: number };
+
+/**
+ * Resolves every record for the host and refuses if any one is private. A
+ * host with one public and one private record, or a zero-TTL rebinding
+ * record, would otherwise pass a single-address check and then be
+ * re-resolved by the fetch itself.
+ */
+async function resolvePinned(url: URL): Promise<Pinned> {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`Unsupported protocol: ${url.protocol}`);
   }
 
-  const { address } = await lookup(url.hostname);
-  if (isPrivateAddress(address)) {
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const records = await lookup(host, { all: true });
+  if (records.length === 0) throw new Error("Could not resolve that host.");
+  if (records.some((r) => isPrivateAddress(r.address))) {
     throw new Error("That URL points at a private or internal address.");
   }
+  return records[0];
 }
 
-/** SSRF-guarded fetch: validates DNS for every hop, including redirects, before following them. */
+/** An Agent whose connector only ever sees the address that passed the check. */
+function pinnedDispatcher({ address, family }: Pinned): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, options, callback) => {
+        if (options.all) callback(null, [{ address, family }]);
+        else callback(null, address, family);
+      },
+    },
+  });
+}
+
+/** SSRF-guarded fetch: validates DNS for every hop, including redirects, and pins each connection. */
 export async function safeFetch(
   inputUrl: string,
   init?: RequestInit & { timeoutMs?: number }
@@ -62,23 +122,39 @@ export async function safeFetch(
   const { timeoutMs = DEFAULT_TIMEOUT_MS, headers, ...rest } = init || {};
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    await assertSafeUrl(current);
+    const agent = pinnedDispatcher(await resolvePinned(current));
 
-    const res = await fetch(current, {
-      ...rest,
-      redirect: "manual",
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; MessengerCloneBot/1.0)", ...headers },
-    });
+    let res: Awaited<ReturnType<typeof undiciFetch>>;
+    try {
+      res = await undiciFetch(current, {
+        ...(rest as Record<string, unknown>),
+        dispatcher: agent,
+        redirect: "manual",
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; MessengerCloneBot/1.0)",
+          ...(headers as Record<string, string> | undefined),
+        },
+      });
+    } catch (error) {
+      await agent.destroy().catch(() => {});
+      throw error;
+    }
 
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get("location");
-      if (!location) return res;
-      current = new URL(location, current);
-      continue;
+      if (location) {
+        await res.body?.cancel().catch(() => {});
+        await agent.destroy().catch(() => {});
+        current = new URL(location, current);
+        continue;
+      }
     }
 
-    return res;
+    // close() waits for the in-flight body to finish streaming, so the
+    // caller can still read it; the socket goes away once it is drained.
+    void agent.close().catch(() => {});
+    return res as unknown as Response;
   }
 
   throw new Error("Too many redirects.");
