@@ -45,10 +45,13 @@ export const reactToMessage: ToolFactory = (ctx) => ({
     let targetPreview = "";
 
     if (!messageId) {
+      // "The last message" means the last one still visible: a soft-deleted
+      // row has no body and nothing a person could be reacting to.
       const { data: latest, error: latestError } = await ctx.supabase
         .from("messages")
         .select("id, body, image, file_url")
         .eq("conversation_id", conversationId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -58,6 +61,16 @@ export const reactToMessage: ToolFactory = (ctx) => ({
 
       messageId = latest.id;
       targetPreview = latest.image ? "the shared image" : latest.file_url ? "the shared file" : `"${latest.body}"`;
+    } else {
+      const { data: target, error: targetError } = await ctx.supabase
+        .from("messages")
+        .select("id, deleted_at")
+        .eq("id", messageId)
+        .maybeSingle();
+
+      if (targetError) return errorResult(`Could not find that message: ${targetError.message}`);
+      if (!target) return errorResult("That message could not be found.");
+      if (target.deleted_at) return errorResult("That message was deleted, so it cannot be reacted to.");
     }
 
     const { data: existing, error: readError } = await ctx.supabase

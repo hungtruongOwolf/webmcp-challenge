@@ -78,8 +78,9 @@ export const readConversation: ToolFactory = (ctx) => ({
             ? `[shared a file "${m.file_name}" -- read_file message_id="${m.id}"]`
             : `${m.body || ""}${m.edited_at ? " (edited)" : ""}`;
 
+      // Reactions on a deleted message point at content nobody can see.
       const byEmoji = new Map<string, string[]>();
-      for (const r of m.reactions ?? []) {
+      for (const r of m.deleted_at ? [] : m.reactions ?? []) {
         const name = r.user?.name || "Someone";
         if (!byEmoji.has(r.emoji)) byEmoji.set(r.emoji, []);
         byEmoji.get(r.emoji)!.push(name);
