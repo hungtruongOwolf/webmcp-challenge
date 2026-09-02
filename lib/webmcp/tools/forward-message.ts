@@ -1,5 +1,6 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
+import { readErrorDetail } from "@/lib/webmcp/http";
 import { conversationTitle, loadConversationHead } from "@/lib/webmcp/conversations";
 import { moveConfirmationPreview } from "@/lib/webmcp/cross-conversation";
 
@@ -52,7 +53,7 @@ export const forwardMessage: ToolFactory = (ctx) => ({
     if (!res.ok) {
       const preview = await moveConfirmationPreview(res, "forward_message", title);
       if (preview) return preview;
-      const detail = (await res.text?.().catch(() => "")) || "";
+      const detail = await readErrorDetail(res);
       return errorResult(`Could not forward the message (status ${res.status}). ${detail}`.trim());
     }
 

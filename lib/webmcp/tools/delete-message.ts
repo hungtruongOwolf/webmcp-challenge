@@ -1,5 +1,6 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
+import { readErrorDetail } from "@/lib/webmcp/http";
 
 /**
  * Same two-call confirmation as delete_conversation: an in-page dialog has
@@ -56,7 +57,7 @@ export const deleteMessage: ToolFactory = (ctx) => ({
     const res = await fetch(`/api/messages/${encodeURIComponent(messageId)}`, { method: "DELETE" });
 
     if (!res.ok) {
-      const detail = (await res.text?.().catch(() => "")) || "";
+      const detail = await readErrorDetail(res);
       return errorResult(`Could not delete the message (status ${res.status}). ${detail}`.trim());
     }
 

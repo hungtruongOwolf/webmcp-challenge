@@ -1,24 +1,14 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
+import { readErrorDetail } from "@/lib/webmcp/http";
 import { conversationTitle, loadConversationHead } from "@/lib/webmcp/conversations";
 import { moveConfirmationPreview } from "@/lib/webmcp/cross-conversation";
-import { safeFileName } from "@/app/libs/supabase/attachments";
+import { extensionForMime, safeFileName } from "@/app/libs/supabase/attachments";
 import {
   describeUploadError,
   uploadChatFile,
   uploadChatImage,
 } from "@/app/libs/supabase/upload";
-
-const MIME_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-  "application/pdf": "pdf",
-  "text/plain": "txt",
-  "text/csv": "csv",
-  "application/zip": "zip",
-};
 
 /** Turns a data: URL into a File the app's upload helper can validate and store. */
 function fileFromDataUrl(dataUrl: string, name?: string): File | null {
@@ -40,12 +30,9 @@ function fileFromDataUrl(dataUrl: string, name?: string): File | null {
     return null;
   }
 
-  const fileName = name ? safeFileName(name) : `attachment.${MIME_EXTENSIONS[mime] || "bin"}`;
+  const fileName = name ? safeFileName(name) : `attachment.${extensionForMime(mime)}`;
   return new File([bytes], fileName, { type: mime });
 }
-
-const readDetail = async (res: { text?: () => Promise<string> }) =>
-  (await res.text?.().catch(() => "")) || "";
 
 export const sendAttachment: ToolFactory = (ctx) => ({
   name: "send_attachment",
@@ -163,7 +150,7 @@ export const sendAttachment: ToolFactory = (ctx) => ({
       if (!res.ok) {
         const preview = await moveConfirmationPreview(res, "send_attachment", title);
         if (preview) return preview;
-        const detail = await readDetail(res);
+        const detail = await readErrorDetail(res);
         return errorResult(`Could not send the attachment (status ${res.status}). ${detail}`.trim());
       }
       const result = await res.json().catch(() => ({}));

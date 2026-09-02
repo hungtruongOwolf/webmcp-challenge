@@ -1,5 +1,6 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { readErrorDetail } from "@/lib/webmcp/http";
 
 export const editMessage: ToolFactory = () => ({
   name: "edit_message",
@@ -36,7 +37,7 @@ export const editMessage: ToolFactory = () => ({
     });
 
     if (!res.ok) {
-      const detail = (await res.text?.().catch(() => "")) || "";
+      const detail = await readErrorDetail(res);
       return errorResult(`Could not edit the message (status ${res.status}). ${detail}`.trim());
     }
 
