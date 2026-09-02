@@ -267,6 +267,17 @@ describe("POST /api/messages/attachments", () => {
     expect(storage.copy).not.toHaveBeenCalled();
   });
 
+  it("keeps internal error detail out of the 500 response", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    rpc.mockRejectedValue(new Error("connection to db-internal.example refused"));
+
+    const response = await POST(request({ conversationId: "conv-1", url: "https://x/a.png" }));
+
+    expect(response.status).toBe(500);
+    await expect(response.text()).resolves.not.toContain("db-internal");
+    expect(consoleError).toHaveBeenCalled();
+  });
+
   it("reports a source message that is missing or unreadable", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
     maybeSingle.mockResolvedValue({ data: null, error: null });
