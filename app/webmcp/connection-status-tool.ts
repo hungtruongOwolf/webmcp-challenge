@@ -1,5 +1,6 @@
 import type { WebMCPTool } from "./browser-api";
 import type { ConnectionSnapshot } from "./connection-state";
+import { textResult } from "@/lib/webmcp/budget";
 
 export const createConnectionStatusTool = (
   getSnapshot: () => ConnectionSnapshot
@@ -18,7 +19,5 @@ export const createConnectionStatusTool = (
     readOnlyHint: true,
     untrustedContentHint: false,
   },
-  execute: async () => ({
-    content: [{ type: "text", text: JSON.stringify(getSnapshot()) }],
-  }),
+  execute: async () => textResult(JSON.stringify(getSnapshot())),
 });
