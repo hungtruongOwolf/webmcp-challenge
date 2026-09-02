@@ -49,6 +49,10 @@ type SupabaseResponse<T> =
   | { data: unknown; error: unknown };
 
 type AuthClient = {
+  // Supabase's real client returns a thenable query builder here, not a
+  // plain Promise -- PromiseLike is the loosest shape that's still
+  // awaitable and matches both that and a simple mock.
+  rpc(fn: string): PromiseLike<unknown>;
   auth: {
     signInWithPasskey(): Promise<SupabaseResponse<unknown>>;
     signInWithPassword(input: {
@@ -267,16 +271,28 @@ export const createAuthGateway = (
     // The whole point of this path is a passkey -- a session bootstrapped
     // with a random password nobody knows, but with no passkey enrolled,
     // is a dead end the user can never sign back into. If the ceremony
-    // fails or is cancelled, roll back to signed-out rather than leave
-    // them stranded in that half-created state.
+    // fails or is cancelled, roll back completely rather than leave them
+    // stranded in that half-created state.
     const passkeyResult = await registerPasskey();
     if (passkeyResult.ok) return signUpResult;
 
+    // Signing out alone only drops the local session -- the auth.users row
+    // itself would still exist, permanently blocking this email with
+    // user_already_exists on the next attempt. delete_unenrolled_passkey_
+    // signup() (a narrowly-scoped RPC, since the anon client has no
+    // self-delete and the service-role key isn't available here) removes
+    // the row itself while the session can still identify it -- must run
+    // before sign-out, not after.
+    try {
+      await client.rpc("delete_unenrolled_passkey_signup");
+    } catch {
+      // Best-effort: surfacing the real passkey failure below matters more
+      // than a cleanup call that couldn't complete.
+    }
     try {
       await client.auth.signOut({ scope: "local" });
     } catch {
-      // Surfacing the real passkey failure below matters more than a
-      // rollback that couldn't complete.
+      // Same reasoning.
     }
     return passkeyResult;
   };

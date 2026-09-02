@@ -12,6 +12,7 @@ const successAuthData = {
 };
 
 const makeClient = () => ({
+  rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   auth: {
     signInWithPasskey: vi.fn().mockResolvedValue({
       data: successAuthData,
@@ -245,10 +246,11 @@ describe("email and password boundaries", () => {
 
     expect(client.auth.registerPasskey).toHaveBeenCalledTimes(1);
     expect(client.auth.signOut).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
     expect(result).toEqual({ ok: true, value: { hasSession: true } });
   });
 
-  it("rolls back to signed-out when the passkey ceremony is cancelled during passkey signup", async () => {
+  it("deletes the bootstrap account and signs out when the passkey ceremony is cancelled", async () => {
     const client = makeClient();
     client.auth.registerPasskey.mockResolvedValueOnce({
       data: null,
@@ -261,8 +263,33 @@ describe("email and password boundaries", () => {
       returnPath: "/users",
     });
 
+    // The RPC (server-side delete of the just-created auth.users row) must
+    // run before sign-out -- it needs the still-active session to know
+    // which account to delete.
+    const rpcOrder = client.rpc.mock.invocationCallOrder[0];
+    const signOutOrder = client.auth.signOut.mock.invocationCallOrder[0];
+    expect(client.rpc).toHaveBeenCalledWith("delete_unenrolled_passkey_signup");
     expect(client.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+    expect(rpcOrder).toBeLessThan(signOutOrder);
     expect(result).toEqual({ ok: false, code: "PASSKEY_CANCELLED" });
+  });
+
+  it("still rolls back (both steps attempted) even if the cleanup RPC itself fails", async () => {
+    const client = makeClient();
+    client.auth.registerPasskey.mockResolvedValueOnce({
+      data: null,
+      error: Object.assign(new Error("cancelled"), { name: "NotAllowedError" }),
+    });
+    client.rpc.mockRejectedValueOnce(new Error("network down"));
+
+    await expect(
+      gatewayFor(client).signUpWithPasskey({
+        name: "Blind User",
+        email: "blind.user@example.org",
+        returnPath: "/users",
+      })
+    ).resolves.toEqual({ ok: false, code: "PASSKEY_CANCELLED" });
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it("still rolls back even if the sign-out call itself fails", async () => {
@@ -280,6 +307,7 @@ describe("email and password boundaries", () => {
         returnPath: "/users",
       })
     ).resolves.toEqual({ ok: false, code: "PASSKEY_CANCELLED" });
+    expect(client.rpc).toHaveBeenCalledWith("delete_unenrolled_passkey_signup");
   });
 
   it("does not attempt to register a passkey when signup left no session", async () => {
