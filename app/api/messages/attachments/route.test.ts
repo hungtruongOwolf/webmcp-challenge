@@ -98,15 +98,70 @@ describe("POST /api/messages/attachments", () => {
     await expect(response.json()).resolves.toMatchObject({ id: "msg-new", kind: "image" });
   });
 
-  it("rejects a URL whose content type no bucket accepts", async () => {
+  it("rejects an oversized body while streaming, before the whole thing is read", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
+    const chunk = new Uint8Array(1024 * 1024);
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(chunk);
+        if (pulled === 12) controller.close();
+      },
+    });
     vi.mocked(safeFetch).mockResolvedValue(
-      new Response("<html></html>", { status: 200, headers: { "content-type": "text/html" } })
+      new Response(body, { status: 200, headers: { "content-type": "image/png" } })
+    );
+
+    const response = await POST(request({ conversationId: "conv-1", url: "https://x/huge.png" }));
+
+    expect(response.status).toBe(413);
+    // 4 MB image cap: the reader stops a chunk or two past it, not at 12 MB.
+    expect(pulled).toBeLessThan(8);
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it("rejects a declared Content-Length over the cap without reading the body", async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(new Uint8Array(16));
+        if (pulled === 4) controller.close();
+      },
+    });
+    vi.mocked(safeFetch).mockResolvedValue(
+      new Response(body, {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(50 * 1024 * 1024) },
+      })
+    );
+
+    const response = await POST(request({ conversationId: "conv-1", url: "https://x/big.png" }));
+
+    expect(response.status).toBe(413);
+    expect(pulled).toBe(0);
+  });
+
+  it("rejects an unsupported content type without reading the body", async () => {
+    rpc.mockResolvedValue({ data: true, error: null });
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(new Uint8Array(16));
+        if (pulled === 4) controller.close();
+      },
+    });
+    vi.mocked(safeFetch).mockResolvedValue(
+      new Response(body, { status: 200, headers: { "content-type": "text/html" } })
     );
 
     const response = await POST(request({ conversationId: "conv-1", url: "https://x/page" }));
 
     expect(response.status).toBe(415);
+    expect(pulled).toBe(0);
     expect(storage.upload).not.toHaveBeenCalled();
   });
 
