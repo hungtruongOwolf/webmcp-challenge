@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UploadError } from "@/app/libs/supabase/upload";
-import { uploadChatImage } from "@/app/libs/supabase/upload";
+import { uploadChatFile, uploadChatImage } from "@/app/libs/supabase/upload";
 import { sendAttachment } from "./send-attachment";
 import { createFakeContext, createFakeSupabase, resultText } from "./fake-supabase";
 
@@ -26,6 +26,7 @@ beforeEach(() => {
   fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ id: "msg-1" }) }));
   vi.stubGlobal("fetch", fetchMock);
   vi.mocked(uploadChatImage).mockReset();
+  vi.mocked(uploadChatFile).mockReset();
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -67,6 +68,23 @@ describe("send_attachment", () => {
     );
     expect(resultText(result)).toContain("Maya");
     expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("strips path separators from the agent's file_name before uploading", async () => {
+    vi.mocked(uploadChatFile).mockResolvedValue({ url: "https://signed/file", remove: vi.fn() });
+    const fake = createFakeSupabase({ results: { conversations: [{ data: conversation }] } });
+    const { ctx } = createFakeContext(fake.client);
+
+    await sendAttachment(ctx).execute({
+      conversation_id: "conv-1",
+      data_url: "data:application/pdf;base64,JVBERi0=",
+      file_name: "../../etc/report.pdf",
+    });
+
+    const [, , uploaded] = vi.mocked(uploadChatFile).mock.calls[0];
+    expect(uploaded.name).not.toMatch(/[\\/]/);
+    expect(uploaded.name).not.toContain("..");
+    expect(uploaded.name).toContain("report.pdf");
   });
 
   it("returns the upload helper's reason when the data URL is refused", async () => {

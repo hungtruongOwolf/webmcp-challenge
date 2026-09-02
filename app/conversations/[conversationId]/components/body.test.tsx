@@ -62,6 +62,25 @@ describe("Body", () => {
     expect(screen.getByText("(edited)")).toBeInTheDocument();
   });
 
+  it("links a file so the browser downloads it instead of rendering it", () => {
+    render(
+      <Body
+        messages={[
+          message({
+            body: null,
+            file_url: "https://abc.supabase.co/storage/v1/object/sign/chat-files/conv-1/other/x-notes.txt?token=t",
+            file_name: "notes.txt",
+            file_size: 12,
+          }),
+        ]}
+        onOpenImage={() => {}}
+      />
+    );
+
+    const link = screen.getByRole("link", { name: /notes\.txt/ });
+    expect(link).toHaveAttribute("href", expect.stringMatching(/[?&]download$/));
+  });
+
   it("renders a deleted message as a short placeholder with no content", () => {
     render(
       <Body

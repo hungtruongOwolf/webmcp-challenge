@@ -98,6 +98,24 @@ describe("POST /api/messages/attachments", () => {
     await expect(response.json()).resolves.toMatchObject({ id: "msg-new", kind: "image" });
   });
 
+  it("keeps a hostile remote file name inside the target folder", async () => {
+    rpc.mockImplementation(async (name: string) =>
+      name === "is_conversation_member" ? { data: true, error: null } : { data: "msg-new", error: null }
+    );
+    vi.mocked(safeFetch).mockResolvedValue(
+      new Response(new Uint8Array([1]), { status: 200, headers: { "content-type": "application/pdf" } })
+    );
+
+    const response = await POST(
+      request({ conversationId: "conv-1", url: "https://x/files/..%2F..%2Fescape.pdf" })
+    );
+
+    expect(response.status).toBe(200);
+    const [path] = storage.upload.mock.calls[0] as unknown as [string];
+    expect(path).toMatch(/^conv-1\/me-id\/[^/]+$/);
+    expect(path).not.toContain("..");
+  });
+
   it("rejects an oversized body while streaming, before the whole thing is read", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
     const chunk = new Uint8Array(1024 * 1024);

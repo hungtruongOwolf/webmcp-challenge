@@ -66,6 +66,23 @@ describe("POST /api/messages", () => {
     );
   });
 
+  it("strips path separators from fileName before it reaches the row", async () => {
+    const response = await POST(
+      request({
+        conversationId: "conv-1",
+        fileUrl: own("chat-files", "conv-1/me-id/x-report.pdf"),
+        fileName: "../../etc/report.pdf",
+        fileSize: 12,
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const [, args] = rpc.mock.calls[0] as unknown as [string, { p_file_name: string }];
+    expect(args.p_file_name).not.toMatch(/[\\/]/);
+    expect(args.p_file_name).not.toContain("..");
+    expect(args.p_file_name).toContain("report.pdf");
+  });
+
   it.each([
     ["an image from another host", { image: "https://evil.example/storage/v1/object/sign/chat-images/conv-1/me-id/pic.png" }],
     ["an image from another conversation's folder", { image: own("chat-images", "conv-2/me-id/pic.png") }],

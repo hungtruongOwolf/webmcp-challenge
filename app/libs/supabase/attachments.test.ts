@@ -1,7 +1,90 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { classifyAttachment, copyMessageAttachment, storageObjectFromUrl } from "./attachments";
+import {
+  classifyAttachment,
+  copyMessageAttachment,
+  safeFileName,
+  storageObjectFromUrl,
+  storeFetchedAttachment,
+  withDownload,
+} from "./attachments";
 import type { SourceMessageAttachment } from "./attachments";
+
+describe("safeFileName", () => {
+  it("leaves an ordinary name alone", () => {
+    expect(safeFileName("Q3 report.pdf")).toBe("Q3 report.pdf");
+  });
+
+  it("strips path separators and parent-directory hops", () => {
+    for (const name of ["../../etc/passwd", "..\\..\\win.ini", "a/../b.txt", "dir/file.pdf"]) {
+      const safe = safeFileName(name);
+      expect(safe).not.toMatch(/[\\/]/);
+      expect(safe).not.toContain("..");
+      expect(safe.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("falls back to a fixed name when nothing usable is left", () => {
+    expect(safeFileName("")).toBe("attachment");
+    expect(safeFileName("../")).toBe("attachment");
+  });
+});
+
+describe("withDownload", () => {
+  it("adds the download flag whether or not the URL already has a query", () => {
+    expect(withDownload("https://abc.supabase.co/storage/v1/object/sign/chat-files/a/b.pdf?token=t")).toBe(
+      "https://abc.supabase.co/storage/v1/object/sign/chat-files/a/b.pdf?token=t&download"
+    );
+    expect(withDownload("https://abc.supabase.co/storage/v1/object/public/chat-files/a/b.pdf")).toBe(
+      "https://abc.supabase.co/storage/v1/object/public/chat-files/a/b.pdf?download"
+    );
+  });
+});
+
+describe("storeFetchedAttachment", () => {
+  const storage = {
+    upload: vi.fn(async () => ({ error: null })),
+    createSignedUrl: vi.fn(async () => ({ data: { signedUrl: "https://signed/new" }, error: null })),
+    remove: vi.fn(async () => ({ error: null })),
+  };
+  const client = { storage: { from: () => storage } } as never;
+
+  beforeEach(() => {
+    storage.upload.mockClear();
+  });
+
+  it("names the stored image by its validated content type, not the remote file name", async () => {
+    await storeFetchedAttachment(client, {
+      bytes: new Uint8Array([1]),
+      contentType: "image/png",
+      name: "evil.html",
+      conversationId: "conv-1",
+      userId: "me-id",
+    });
+
+    expect(storage.upload).toHaveBeenCalledWith(
+      expect.stringMatching(/^conv-1\/me-id\/[^/]+\.png$/),
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it("keeps a remote file name inside the conversation folder", async () => {
+    const stored = await storeFetchedAttachment(client, {
+      bytes: new Uint8Array([1]),
+      contentType: "application/pdf",
+      name: "../../etc/passwd.pdf",
+      conversationId: "conv-1",
+      userId: "me-id",
+    });
+
+    const [path] = storage.upload.mock.calls[0] as unknown as [string];
+    expect(path).toMatch(/^conv-1\/me-id\/[^/]+$/);
+    expect(path).not.toContain("..");
+    expect(stored.fileName).not.toMatch(/[\\/]/);
+    expect(stored.fileName).not.toContain("..");
+  });
+});
 
 describe("storageObjectFromUrl", () => {
   it("recovers bucket and object path from a signed URL", () => {
