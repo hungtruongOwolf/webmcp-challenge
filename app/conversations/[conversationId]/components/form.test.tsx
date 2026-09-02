@@ -100,6 +100,45 @@ describe("message Form", () => {
     });
   });
 
+  it("keeps programmatic text through a rerender and still sends it", async () => {
+    const user = userEvent.setup();
+    const view = render(<Form />);
+
+    placeTextWithoutReact(
+      screen.getByLabelText<HTMLInputElement>("Type a message"),
+      "placed by automation"
+    );
+    // Thread rerenders Form on every realtime event and token refresh.
+    view.rerender(<Form />);
+    view.rerender(<Form />);
+
+    expect(screen.getByLabelText("Type a message")).toHaveValue("placed by automation");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(axios.post).toHaveBeenCalledWith("/api/messages", {
+      message: "placed by automation",
+      conversationId: "conversation-1",
+    });
+  });
+
+  it("lights up the Send button for programmatic text and dims it after sending", async () => {
+    const user = userEvent.setup();
+    render(<Form />);
+    const send = screen.getByRole("button", { name: "Send message" });
+    expect(send).toHaveStyle({ cursor: "default" });
+
+    placeTextWithoutReact(
+      screen.getByLabelText<HTMLInputElement>("Type a message"),
+      "placed by automation"
+    );
+    expect(send).toHaveStyle({ cursor: "pointer" });
+
+    await user.click(send);
+
+    await waitFor(() => expect(send).toHaveStyle({ cursor: "default" }));
+    expect(screen.getByLabelText("Type a message")).toHaveValue("");
+  });
+
   it("sends the same programmatic text on Enter", async () => {
     const user = userEvent.setup();
     render(<Form />);
