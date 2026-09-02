@@ -161,7 +161,7 @@ export function safeFileName(name: string): string {
 }
 
 /** The stored name ends in the extension the validated content type says it should. */
-function nameForType(name: string, contentType: string): string {
+export function nameForType(name: string, contentType: string): string {
   const ext = extensionForMime(contentType);
   const safe = safeFileName(name);
   return extensionOf(safe) === ext ? safe : `${safe}.${ext}`;

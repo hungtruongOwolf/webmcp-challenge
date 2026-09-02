@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   classifyAttachment,
   copyMessageAttachment,
+  nameForType,
   safeFileName,
   storageObjectFromUrl,
   storeFetchedAttachment,
@@ -27,6 +28,22 @@ describe("safeFileName", () => {
   it("falls back to a fixed name when nothing usable is left", () => {
     expect(safeFileName("")).toBe("attachment");
     expect(safeFileName("../")).toBe("attachment");
+  });
+});
+
+describe("nameForType", () => {
+  it("appends the typed extension when the name has a different one", () => {
+    expect(nameForType("evil.html", "image/png")).toBe("evil.html.png");
+    expect(nameForType("report", "application/pdf")).toBe("report.pdf");
+  });
+
+  it("keeps a name whose extension already matches the type", () => {
+    expect(nameForType("report.pdf", "application/pdf")).toBe("report.pdf");
+    expect(nameForType("Photo.JPG", "image/jpeg")).toBe("Photo.JPG");
+  });
+
+  it("treats jpeg as the same extension as jpg", () => {
+    expect(nameForType("photo.jpeg", "image/jpeg")).toBe("photo.jpeg");
   });
 });
 
