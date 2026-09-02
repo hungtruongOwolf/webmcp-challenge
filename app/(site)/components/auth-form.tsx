@@ -179,32 +179,33 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
             </div>
           )}
 
-          {readiness.status === "ready" ? (
-            <>
-              <button
-                ref={passkeyButtonRef}
-                type="button"
-                onClick={signInWithPasskey}
-                disabled={isPending}
-                aria-describedby="passkey-method-description"
-                style={primaryButtonStyle(isPending)}
-              >
-                <HiOutlineFingerPrint size={19} aria-hidden />
-                Sign in with a passkey
-              </button>
-              <p
-                id="passkey-method-description"
-                style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--t2)" }}
-              >
-                Your operating system may offer a fingerprint, face, device
-                PIN, password manager, or hardware security key.
+          {variant === "LOGIN" &&
+            (readiness.status === "ready" ? (
+              <>
+                <button
+                  ref={passkeyButtonRef}
+                  type="button"
+                  onClick={signInWithPasskey}
+                  disabled={isPending}
+                  aria-describedby="passkey-method-description"
+                  style={primaryButtonStyle(isPending)}
+                >
+                  <HiOutlineFingerPrint size={19} aria-hidden />
+                  Sign in with a passkey
+                </button>
+                <p
+                  id="passkey-method-description"
+                  style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "var(--t2)" }}
+                >
+                  Your operating system may offer a fingerprint, face, device
+                  PIN, password manager, or hardware security key.
+                </p>
+              </>
+            ) : (
+              <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
+                {readiness.message}
               </p>
-            </>
-          ) : (
-            <p style={{ margin: 0, fontSize: 13.5, color: "var(--t2)" }}>
-              {readiness.message}
-            </p>
-          )}
+            ))}
 
           <EmailAuthForm
             variant={variant}

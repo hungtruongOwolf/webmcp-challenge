@@ -211,6 +211,28 @@ describe("EmailAuthForm", () => {
     expect(screen.queryByText("raw provider detail")).not.toBeInTheDocument();
   });
 
+  it("rejects a too-short password on REGISTER before calling the gateway", async () => {
+    const user = userEvent.setup();
+    const signUpWithPassword = vi.fn(async () => ({
+      ok: true as const,
+      value: { hasSession: true },
+    }));
+    renderForm({
+      variant: "REGISTER",
+      gateway: createGateway({ signUpWithPassword }),
+    });
+
+    await user.type(screen.getByLabelText("Name"), "Ada Reader");
+    await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.type(screen.getByLabelText("Password"), "abc");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(
+      screen.getByText("Password should be at least 6 characters.")
+    ).toBeVisible();
+    expect(signUpWithPassword).not.toHaveBeenCalled();
+  });
+
   it("offers passkey enrollment after registration with a session", async () => {
     const user = userEvent.setup();
     const onPasskeyEnrollment = vi.fn();

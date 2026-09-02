@@ -288,6 +288,19 @@ describe("AuthForm", () => {
     );
   });
 
+  it("hides the passkey sign-in action on the create-account screen", async () => {
+    const user = userEvent.setup();
+    renderAuthForm();
+
+    await user.click(
+      screen.getByRole("button", { name: "Create an account" })
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Sign in with a passkey" })
+    ).not.toBeInTheDocument();
+  });
+
   it("omits passkey action and explains when passkeys are unavailable", () => {
     browser.readiness = {
       status: "unsupported",

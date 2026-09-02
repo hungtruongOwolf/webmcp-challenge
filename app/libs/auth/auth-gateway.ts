@@ -7,6 +7,8 @@ export type AuthFailureCode =
   | "INVALID_CREDENTIALS"
   | "RATE_LIMITED"
   | "PASSKEY_FAILED"
+  | "ACCOUNT_EXISTS"
+  | "WEAK_PASSWORD"
   | "UNKNOWN";
 
 export type AuthResult<T = undefined> =
@@ -96,6 +98,12 @@ const normalizeAuthFailure = (
   }
   if (code === "invalid_credentials") {
     return { ok: false, code: "INVALID_CREDENTIALS" };
+  }
+  if (code === "user_already_exists") {
+    return { ok: false, code: "ACCOUNT_EXISTS" };
+  }
+  if (code === "weak_password") {
+    return { ok: false, code: "WEAK_PASSWORD" };
   }
   if (code?.includes("rate_limit")) {
     return { ok: false, code: "RATE_LIMITED" };
@@ -253,6 +261,9 @@ const AUTH_FAILURE_MESSAGES: Record<AuthFailureCode, string> = {
     "Passkey sign-in cancelled. Choose another sign-in method when ready.",
   PASSKEY_NOT_FOUND: "No passkey was found for this device. Use a password.",
   INVALID_CREDENTIALS: "The email or password was not recognized.",
+  ACCOUNT_EXISTS:
+    "An account already exists for this email. Sign in instead.",
+  WEAK_PASSWORD: "Password should be at least 6 characters.",
   RATE_LIMITED: "Too many attempts. Wait a moment, then try again.",
   PASSKEY_FAILED:
     "The passkey could not be used. Try another sign-in method.",

@@ -187,6 +187,16 @@ export const EmailAuthForm = ({
         register={register}
         errors={errors}
         disabled={isPending}
+        registerOptions={
+          variant === "REGISTER"
+            ? {
+                minLength: {
+                  value: 6,
+                  message: "Password should be at least 6 characters.",
+                },
+              }
+            : undefined
+        }
       />
 
       <Button type="submit" disabled={isPending} fullWidth>

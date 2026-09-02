@@ -107,6 +107,45 @@ describe("auth failure normalization", () => {
     ).resolves.toEqual({ ok: false, code: "INVALID_CREDENTIALS" });
   });
 
+  it("maps signing up with an email that already has an account", async () => {
+    const client = makeClient();
+    client.auth.signUp.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: Object.assign(new Error("raw provider detail"), {
+        code: "user_already_exists",
+      }),
+    });
+
+    const result = await gatewayFor(client).signUpWithPassword({
+      name: "Blind User",
+      email: "blind.user@example.org",
+      password: "password",
+      returnPath: "/users",
+    });
+
+    expect(result).toEqual({ ok: false, code: "ACCOUNT_EXISTS" });
+    expect(JSON.stringify(result)).not.toContain("raw provider detail");
+  });
+
+  it("maps a weak password rejected at sign-up", async () => {
+    const client = makeClient();
+    client.auth.signUp.mockResolvedValueOnce({
+      data: { user: null, session: null },
+      error: Object.assign(new Error("Password should be at least 6 characters."), {
+        code: "weak_password",
+      }),
+    });
+
+    const result = await gatewayFor(client).signUpWithPassword({
+      name: "Blind User",
+      email: "blind.user@example.org",
+      password: "123",
+      returnPath: "/users",
+    });
+
+    expect(result).toEqual({ ok: false, code: "WEAK_PASSWORD" });
+  });
+
   it("maps rate limiting from a rejected password sign-in", async () => {
     const client = makeClient();
     client.auth.signInWithPassword.mockResolvedValueOnce({
@@ -330,6 +369,11 @@ it.each<[AuthFailureCode, string]>([
     "No passkey was found for this device. Use a password.",
   ],
   ["INVALID_CREDENTIALS", "The email or password was not recognized."],
+  [
+    "ACCOUNT_EXISTS",
+    "An account already exists for this email. Sign in instead.",
+  ],
+  ["WEAK_PASSWORD", "Password should be at least 6 characters."],
   ["RATE_LIMITED", "Too many attempts. Wait a moment, then try again."],
   [
     "PASSKEY_FAILED",
