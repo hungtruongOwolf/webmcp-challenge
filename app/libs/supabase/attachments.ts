@@ -23,6 +23,7 @@ export type StoredAttachment = {
 };
 
 export type SourceMessageAttachment = {
+  conversation_id: string;
   image: string | null;
   file_url: string | null;
   file_name: string | null;
@@ -77,6 +78,46 @@ export function storageObjectFromUrl(url: string): { bucket: string; path: strin
   } catch {
     return null;
   }
+}
+
+const BUCKET_FOR: Record<AttachmentKind, "chat-images" | "chat-files"> = {
+  image: "chat-images",
+  file: "chat-files",
+};
+
+/** True when the URL is served by this project's Supabase instance. */
+export function isOwnStorageOrigin(url: string): boolean {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!base) return false;
+  try {
+    return new URL(url).origin === new URL(base).origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolves a message attachment URL to its storage object, refusing unless
+ * it sits in the bucket that column is meant for and under the folder of
+ * the conversation the message belongs to. Any member can write whatever
+ * URL they like into a row, so the row alone is not proof the object is
+ * theirs to share.
+ */
+export function ownAttachmentObject(
+  url: string,
+  kind: AttachmentKind,
+  conversationId: string,
+  status: number
+): { bucket: string; path: string } {
+  const object = storageObjectFromUrl(url);
+  if (!object) throw new AttachmentError("That attachment is not stored in Verb.", status);
+  if (object.bucket !== BUCKET_FOR[kind] || !object.path.startsWith(`${conversationId}/`)) {
+    throw new AttachmentError(
+      "That attachment does not belong to the conversation it was posted in.",
+      status
+    );
+  }
+  return object;
 }
 
 const MIME_EXTENSIONS: Record<string, string> = {
@@ -232,10 +273,9 @@ export async function copyMessageAttachment(
   const sourceUrl = source.image ?? source.file_url;
   if (!sourceUrl) return null;
 
-  const object = storageObjectFromUrl(sourceUrl);
-  if (!object) throw new AttachmentError("That attachment is not stored in Verb, so it cannot be copied.", 409);
-
   const kind: AttachmentKind = source.image ? "image" : "file";
+  const object = ownAttachmentObject(sourceUrl, kind, source.conversation_id, 409);
+
   const baseName = object.path.split("/").pop() || "attachment";
   const name = source.file_name || baseName;
   const path = objectPath(kind, targetConversationId, userId, name, extensionFor(baseName, ""));

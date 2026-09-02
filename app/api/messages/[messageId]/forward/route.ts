@@ -46,7 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<IParams> 
 
     const { data: source, error: sourceError } = await supabase
       .from("messages")
-      .select("id, body, image, file_url, file_name, file_size")
+      .select("id, conversation_id, body, image, file_url, file_name, file_size")
       .eq("id", messageId)
       .maybeSingle();
     if (sourceError) throw sourceError;
