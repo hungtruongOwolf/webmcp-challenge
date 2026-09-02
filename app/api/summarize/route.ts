@@ -69,6 +69,7 @@ export async function POST(req: Request) {
         "body, image, file_name, created_at, sender:profiles!messages_sender_id_fkey (name)"
       )
       .eq("conversation_id", conversationId)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(MAX_MESSAGES);
 

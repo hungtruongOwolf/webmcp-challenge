@@ -4,7 +4,9 @@ import { textResult, errorResult } from "@/lib/webmcp/budget";
 export const draftMessage: ToolFactory = (ctx) => ({
   name: "draft_message",
   description:
-    "Save a draft reply in a conversation without sending it. Call send_message to actually send it.",
+    "Save a draft reply in a conversation without sending it. Calling this again for the same " +
+    "conversation overwrites the previous draft, so it also doubles as 'edit my draft'. Call " +
+    "send_message to actually send it.",
   inputSchema: {
     type: "object",
     properties: {

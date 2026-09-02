@@ -50,6 +50,7 @@ export type Database = {
       conversations: {
         Row: {
           created_at: string
+          direct_key: string | null
           id: string
           is_group: boolean
           last_message_at: string
@@ -57,6 +58,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          direct_key?: string | null
           id?: string
           is_group?: boolean
           last_message_at?: string
@@ -64,6 +66,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          direct_key?: string | null
           id?: string
           is_group?: boolean
           last_message_at?: string
@@ -181,6 +184,8 @@ export type Database = {
           body: string | null
           conversation_id: string
           created_at: string
+          deleted_at: string | null
+          edited_at: string | null
           file_name: string | null
           file_size: number | null
           file_url: string | null
@@ -192,6 +197,8 @@ export type Database = {
           body?: string | null
           conversation_id: string
           created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null
@@ -203,6 +210,8 @@ export type Database = {
           body?: string | null
           conversation_id?: string
           created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null

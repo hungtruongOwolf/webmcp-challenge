@@ -50,7 +50,12 @@ const Thread: React.FC<ThreadProps> = ({ conversation, initialMessages }) => {
           const record = payload.record;
 
           setMessages((current) => {
-            if (find(current, { id: record.id })) return current;
+            if (find(current, { id: record.id })) {
+              // An edit or soft-delete arrives as an UPDATE on a message id
+              // already in state -- merge the changed columns in instead of
+              // dropping the event, so edits/deletes actually show live.
+              return current.map((m) => (m.id === record.id ? { ...m, ...record } : m));
+            }
 
             const sender = findUser(record.sender_id);
             if (!sender) return current;

@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, isToday, isYesterday, isThisWeek } from "date-fns";
-import { HiOutlineDocument, HiOutlineArrowDownTray } from "react-icons/hi2";
+import {
+  HiOutlineDocument,
+  HiOutlineArrowDownTray,
+  HiOutlinePencil,
+  HiOutlineTrash,
+} from "react-icons/hi2";
 
 import type { FullMessageType } from "@/app/types";
 import { STICKER_EMOJI } from "@/app/types";
@@ -11,8 +16,21 @@ import { useUiSettings } from "@/app/context/ui-settings-context";
 import { avatarColors, initialsFromName } from "@/app/libs/avatar-color";
 import { createClient } from "@/app/libs/supabase/client";
 import Avatar from "@/app/components/avatar";
+import ConfirmDialog from "@/app/components/modals/confirm-dialog";
 import MessageReactions from "./message-reactions";
 import MessageMarkdown from "./message-markdown";
+
+const smallIconBtnStyle: React.CSSProperties = {
+  width: 20,
+  height: 20,
+  display: "grid",
+  placeItems: "center",
+  border: "none",
+  borderRadius: 999,
+  background: "transparent",
+  color: "var(--t3)",
+  cursor: "pointer",
+};
 
 const STICKER_SET = new Set<string>(STICKER_EMOJI);
 
@@ -40,8 +58,47 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUser();
   const { theme } = useUiSettings();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const myEmail = currentUser?.email;
+
+  const startEdit = (message: FullMessageType) => {
+    setEditingId(message.id);
+    setEditDraft(message.body ?? "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft("");
+  };
+
+  const saveEdit = () => {
+    const body = editDraft.trim();
+    if (!editingId || !body) return;
+
+    createClient()
+      .from("messages")
+      .update({ body })
+      .eq("id", editingId)
+      .then(() => {});
+
+    setEditingId(null);
+    setEditDraft("");
+  };
+
+  const confirmDelete = () => {
+    if (!confirmDeleteId) return;
+
+    createClient()
+      .from("messages")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", confirmDeleteId)
+      .then(() => {});
+
+    setConfirmDeleteId(null);
+  };
 
   useEffect(() => {
     bottomRef?.current?.scrollIntoView();
@@ -180,7 +237,21 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                           className="gm-msg-row"
                           style={{ width: "auto", maxWidth: "78%", display: "flex", flexDirection: "column", gap: 3, alignItems: isOwn ? "flex-end" : "flex-start" }}
                         >
-                          {message.image ? (
+                          {message.deleted_at ? (
+                            <div
+                              style={{
+                                padding: "9px 13px",
+                                borderRadius: radius,
+                                background: isOwn ? "var(--bub-out)" : "var(--bub-in)",
+                                color: "var(--t3)",
+                                fontSize: 14.5,
+                                fontStyle: "italic",
+                                boxShadow: "0 0 0 0.5px var(--hair)",
+                              }}
+                            >
+                              Message deleted
+                            </div>
+                          ) : message.image ? (
                             <button
                               type="button"
                               onClick={() => onOpenImage(message.image!)}
@@ -240,6 +311,44 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                             >
                               {message.body}
                             </div>
+                          ) : editingId === message.id ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", minWidth: 220 }}>
+                              <textarea
+                                value={editDraft}
+                                onChange={(e) => setEditDraft(e.target.value)}
+                                autoFocus
+                                rows={2}
+                                style={{
+                                  width: "100%",
+                                  resize: "vertical",
+                                  padding: "9px 13px",
+                                  borderRadius: radius,
+                                  border: "1px solid var(--hair)",
+                                  background: isOwn ? "var(--bub-out)" : "var(--bub-in)",
+                                  color: isOwn ? "var(--bub-out-t)" : "var(--bub-in-t)",
+                                  fontSize: 15.5,
+                                  fontFamily: "inherit",
+                                  outline: "none",
+                                }}
+                              />
+                              <div style={{ display: "flex", gap: 6, justifyContent: isOwn ? "flex-end" : "flex-start" }}>
+                                <button
+                                  type="button"
+                                  onClick={cancelEdit}
+                                  style={{ padding: "4px 10px", fontSize: 12.5, borderRadius: 6, border: "none", background: "var(--hover)", color: "var(--t2)", cursor: "pointer" }}
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={saveEdit}
+                                  disabled={!editDraft.trim()}
+                                  style={{ padding: "4px 10px", fontSize: 12.5, borderRadius: 6, border: "none", background: "var(--accent)", color: "#fff", cursor: editDraft.trim() ? "pointer" : "default", opacity: editDraft.trim() ? 1 : 0.6 }}
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            </div>
                           ) : (
                             <div
                               style={{
@@ -256,14 +365,47 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
                               }}
                             >
                               <MessageMarkdown text={message.body ?? ""} />
+                              {message.edited_at && (
+                                <span style={{ fontSize: 11, opacity: 0.65, marginLeft: 6 }}>
+                                  (edited)
+                                </span>
+                              )}
                             </div>
                           )}
-                          <MessageReactions
-                            message={message}
-                            currentUserId={currentUser?.id}
-                            isOwn={isOwn}
-                            onReact={(emoji) => handleReact(message, emoji)}
-                          />
+                          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                            {!message.deleted_at && editingId !== message.id && (
+                              <MessageReactions
+                                message={message}
+                                currentUserId={currentUser?.id}
+                                isOwn={isOwn}
+                                onReact={(emoji) => handleReact(message, emoji)}
+                              />
+                            )}
+                            {isOwn && !message.deleted_at && editingId !== message.id && (
+                              <>
+                                {!message.image &&
+                                  !message.file_url &&
+                                  !(message.body && STICKER_SET.has(message.body.trim())) && (
+                                    <button
+                                      type="button"
+                                      aria-label="Edit message"
+                                      onClick={() => startEdit(message)}
+                                      style={smallIconBtnStyle}
+                                    >
+                                      <HiOutlinePencil size={12} />
+                                    </button>
+                                  )}
+                                <button
+                                  type="button"
+                                  aria-label="Delete message"
+                                  onClick={() => setConfirmDeleteId(message.id)}
+                                  style={smallIconBtnStyle}
+                                >
+                                  <HiOutlineTrash size={12} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -311,6 +453,15 @@ const Body: React.FC<BodyProps> = ({ messages, onOpenImage }) => {
 
         <div ref={bottomRef} style={{ height: 4 }} />
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDeleteId !== null}
+        title="Delete message"
+        body="This can't be undone. The message will be removed for everyone."
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 };
