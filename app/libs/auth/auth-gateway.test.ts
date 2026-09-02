@@ -37,6 +37,7 @@ const makeClient = () => ({
       list: vi.fn().mockResolvedValue({ data: [], error: null }),
       delete: vi.fn().mockResolvedValue({ data: null, error: null }),
     },
+    signOut: vi.fn().mockResolvedValue({ error: null }),
   },
 });
 
@@ -230,6 +231,16 @@ describe("passkey boundaries", () => {
     expect(JSON.stringify(registered)).not.toContain("new-passkey");
   });
 
+  it("signs out every session so a different person can sign in", async () => {
+    const client = makeClient();
+
+    await expect(gatewayFor(client).signOut()).resolves.toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: "global" });
+  });
+
   it("normalizes a passkey-list failure", async () => {
     const client = makeClient();
     client.auth.passkey.list.mockResolvedValueOnce({
@@ -301,6 +312,12 @@ describe("rejected Supabase operations", () => {
       reject: (client, error) =>
         client.auth.passkey.delete.mockRejectedValueOnce(error),
       invoke: (gateway) => gateway.deletePasskey("passkey-id"),
+      code: "UNKNOWN",
+    },
+    {
+      operation: "sign-out",
+      reject: (client, error) => client.auth.signOut.mockRejectedValueOnce(error),
+      invoke: (gateway) => gateway.signOut(),
       code: "UNKNOWN",
     },
   ];
