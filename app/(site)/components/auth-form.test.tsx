@@ -416,9 +416,10 @@ describe("AuthForm", () => {
     renderAuthForm();
 
     await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
-    expect(screen.getByRole("status")).toHaveTextContent(
+    const notice = screen.getByText(
       "Signed out. Sign in or create a different account."
     );
+    expect(notice).toHaveAttribute("aria-live", "polite");
   });
 
   it("waits for the readiness check before focusing the email field after sign-out", async () => {
