@@ -45,18 +45,24 @@ beforeEach(() => {
 });
 
 describe("PATCH /api/messages/[messageId]", () => {
-  it("lets only the author edit, and stamps edited_at", async () => {
+  it("lets only the author edit, and returns the edited_at the trigger stamped", async () => {
     lookup.mockResolvedValue({
       data: { id: "m1", sender_id: "me-id", deleted_at: null, image: null, file_url: null },
       error: null,
     });
+    updateResult.mockResolvedValue({ data: { id: "m1", edited_at: "2026-09-02T09:05:00+00:00" }, error: null });
 
     const response = await call("PATCH", "m1", { body: "fixed typo" });
 
     expect(response.status).toBe(200);
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({ body: "fixed typo", edited_at: expect.any(String) })
-    );
+    // Postgres stamps edited_at in a before-update trigger; a client value
+    // would be overwritten anyway, and echoing it back would misreport the row.
+    expect(update).toHaveBeenCalledWith({ body: "fixed typo" });
+    await expect(response.json()).resolves.toEqual({
+      id: "m1",
+      body: "fixed typo",
+      editedAt: "2026-09-02T09:05:00+00:00",
+    });
   });
 
   it("refuses someone else's message", async () => {
