@@ -63,7 +63,7 @@ type AuthClient = {
       email: string;
       password: string;
       options: {
-        data: { name: string };
+        data: { name: string; [key: string]: unknown };
         emailRedirectTo: string;
       };
     }): Promise<SupabaseResponse<{ session: unknown }>>;
@@ -182,14 +182,15 @@ export const createAuthGateway = (
     email: string,
     password: string,
     name: string,
-    returnPath: string
+    returnPath: string,
+    extraMetadata?: Record<string, unknown>
   ): Promise<AuthResult<{ hasSession: boolean }>> => {
     try {
       const { data, error } = await client.auth.signUp({
         email,
         password,
         options: {
-          data: { name },
+          data: { name, ...extraMetadata },
           emailRedirectTo: buildAuthCallbackUrl(appOrigin, returnPath, true),
         },
       });
@@ -262,7 +263,14 @@ export const createAuthGateway = (
       email,
       generateBootstrapPassword(),
       name,
-      returnPath
+      returnPath,
+      // Marks this row as a passkey bootstrap still pending enrollment, so
+      // the server-side sweep (cleanup_abandoned_passkey_signups(), for
+      // when the user closes the tab or loses network mid-ceremony instead
+      // of hitting the client-side rollback below) can tell it apart from
+      // a real password-signup account that just hasn't done anything yet
+      // -- those never carry this flag and are never eligible.
+      { passkey_bootstrap: true }
     );
     if (!signUpResult.ok || !signUpResult.value.hasSession) {
       return signUpResult;

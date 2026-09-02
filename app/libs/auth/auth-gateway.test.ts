@@ -223,7 +223,7 @@ describe("email and password boundaries", () => {
     const call = client.auth.signUp.mock.calls[0][0];
     expect(call.email).toBe("blind.user@example.org");
     expect(call.options).toEqual({
-      data: { name: "Blind User" },
+      data: { name: "Blind User", passkey_bootstrap: true },
       emailRedirectTo:
         "https://messenger.example/auth/callback?next=%2Fusers&enroll=passkey",
     });
