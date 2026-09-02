@@ -171,7 +171,7 @@ describe("POST /api/messages/attachments", () => {
         ? { data: true, error: null }
         : { data: "msg-new", error: null }
     );
-    maybeSingle.mockResolvedValue({
+    maybeSingle.mockResolvedValueOnce({
       data: {
         id: "m1",
         conversation_id: "conv-2",
@@ -183,7 +183,6 @@ describe("POST /api/messages/attachments", () => {
       },
       error: null,
     });
-
     maybeSingle.mockResolvedValueOnce({
       data: { id: "conv-2", name: "Team", is_group: true, members: [] },
       error: null,
@@ -243,7 +242,7 @@ describe("POST /api/messages/attachments", () => {
 
   it("refuses to copy a file whose URL points at the images bucket", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
-    maybeSingle.mockResolvedValue({
+    maybeSingle.mockResolvedValueOnce({
       data: {
         id: "m1",
         conversation_id: "conv-2",
@@ -253,6 +252,10 @@ describe("POST /api/messages/attachments", () => {
         file_name: "pic.png",
         file_size: 10,
       },
+      error: null,
+    });
+    maybeSingle.mockResolvedValueOnce({
+      data: { id: "conv-2", name: "Team", is_group: true, members: [] },
       error: null,
     });
 

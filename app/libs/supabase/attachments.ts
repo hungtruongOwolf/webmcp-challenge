@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/app/types/database";
+import { conversationTitle } from "@/lib/webmcp/conversations";
 import {
   CHAT_FILE_TYPES,
   CHAT_IMAGE_TYPES,
@@ -290,6 +291,26 @@ export async function copyMessageAttachment(
     fileName: kind === "file" ? name : null,
     fileSize: kind === "file" ? source.file_size : null,
     remove: signed.remove,
+  };
+}
+
+export type SourceConversation = { id: string; name: string };
+
+/** The source conversation's id and title, so a move between chats can be named to the user. */
+export async function describeSourceConversation(
+  supabase: Client,
+  conversationId: string,
+  userId: string
+): Promise<SourceConversation> {
+  const { data, error } = await supabase
+    .from("conversations")
+    .select("id, name, members:conversation_members ( profile:profiles ( id, name ) )")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    id: conversationId,
+    name: conversationTitle(data as Parameters<typeof conversationTitle>[0], userId),
   };
 }
 

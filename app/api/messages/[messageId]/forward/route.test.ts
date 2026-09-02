@@ -130,18 +130,15 @@ describe("POST /api/messages/[messageId]/forward", () => {
 
   it("refuses to copy an attachment filed outside the source message's conversation", async () => {
     rpc.mockResolvedValue({ data: true, error: null });
-    maybeSingle.mockResolvedValue({
+    maybeSingle.mockResolvedValueOnce({
       data: {
-        id: "m1",
-        conversation_id: "conv-2",
+        ...sourceInConv2,
         body: null,
         image: "https://abc.supabase.co/storage/v1/object/sign/chat-images/conv-9/other/pic.png?token=t",
-        file_url: null,
-        file_name: null,
-        file_size: null,
       },
       error: null,
     });
+    maybeSingle.mockResolvedValueOnce({ data: conv2, error: null });
 
     const response = await call("m1", { conversationId: "conv-1", confirm: true });
 

@@ -5,8 +5,9 @@ import {
   AttachmentError,
   copyMessageAttachment,
   createMessageArgs,
+  describeSourceConversation,
 } from "@/app/libs/supabase/attachments";
-import type { StoredAttachment } from "@/app/libs/supabase/attachments";
+import type { SourceConversation, StoredAttachment } from "@/app/libs/supabase/attachments";
 
 type IParams = {
   messageId?: string;
@@ -52,6 +53,16 @@ export async function POST(req: Request, { params }: { params: Promise<IParams> 
     if (sourceError) throw sourceError;
     if (!source) return new NextResponse("No message with that id that you can read.", { status: 404 });
 
+    // Moving content between chats is the injection path a message in one
+    // chat would use to leak another, so it needs an explicit second call.
+    let from: SourceConversation | undefined;
+    if (source.conversation_id !== conversationId) {
+      from = await describeSourceConversation(supabase, source.conversation_id, user.id);
+      if (body.confirm !== true) {
+        return NextResponse.json({ needsConfirmation: true, source: from }, { status: 428 });
+      }
+    }
+
     stored = await copyMessageAttachment(supabase, source, conversationId, user.id);
     if (!stored && !source.body) {
       return new NextResponse("That message has nothing to forward.", { status: 400 });
@@ -63,7 +74,7 @@ export async function POST(req: Request, { params }: { params: Promise<IParams> 
     );
     if (rpcError) throw rpcError;
 
-    return NextResponse.json({ id: newMessageId, conversationId });
+    return NextResponse.json({ id: newMessageId, conversationId, ...(from ? { source: from } : {}) });
   } catch (error: unknown) {
     await stored?.remove().catch(() => {});
 

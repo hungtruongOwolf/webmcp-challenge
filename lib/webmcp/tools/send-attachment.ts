@@ -1,6 +1,7 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
-import { textResult, errorResult } from "@/lib/webmcp/budget";
+import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 import { conversationTitle, loadConversationHead } from "@/lib/webmcp/conversations";
+import { moveConfirmationPreview } from "@/lib/webmcp/cross-conversation";
 import {
   describeUploadError,
   uploadChatFile,
@@ -52,7 +53,9 @@ export const sendAttachment: ToolFactory = (ctx) => ({
     "data: URL of the bytes), url (a public http/https link, fetched server side), or " +
     "message_id (re-send the attachment already on a message in any of your conversations). " +
     "Add caption to send text with it. Images: jpeg/png/webp/gif up to 4 MB. Files: pdf, " +
-    "office documents, txt, csv, zip up to 20 MB. To pass along text too, use forward_message.",
+    "office documents, txt, csv, zip up to 20 MB. To pass along text too, use forward_message. " +
+    "With message_id, when the source message is in a different conversation than the target, " +
+    "the first call only previews the move; call again with confirm: true once the user agrees.",
   inputSchema: {
     type: "object",
     properties: {
@@ -80,6 +83,12 @@ export const sendAttachment: ToolFactory = (ctx) => ({
         type: "string",
         description: "Optional file name for a data_url upload, e.g. report.pdf.",
       },
+      confirm: {
+        type: "boolean",
+        description:
+          "Only with message_id: set true after the user has explicitly agreed to move an " +
+          "attachment out of a different conversation.",
+      },
     },
     required: ["conversation_id"],
     additionalProperties: false,
@@ -98,7 +107,11 @@ export const sendAttachment: ToolFactory = (ctx) => ({
       return errorResult("Pass exactly one source: data_url, url, or message_id.");
     }
 
+    const conversation = await loadConversationHead(ctx.supabase, conversationId).catch(() => null);
+    const title = conversationTitle(conversation, ctx.currentUser.id);
+
     let kind = "attachment";
+    let from = "";
 
     if (dataUrl) {
       const file = fileFromDataUrl(dataUrl, input.file_name ? String(input.file_name) : undefined);
@@ -141,20 +154,23 @@ export const sendAttachment: ToolFactory = (ctx) => ({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          url ? { conversationId, caption, url } : { conversationId, caption, sourceMessageId: messageId }
+          url
+            ? { conversationId, caption, url }
+            : { conversationId, caption, sourceMessageId: messageId, confirm: input.confirm === true }
         ),
       });
       if (!res.ok) {
+        const preview = await moveConfirmationPreview(res, "send_attachment", title);
+        if (preview) return preview;
         const detail = await readDetail(res);
         return errorResult(`Could not send the attachment (status ${res.status}). ${detail}`.trim());
       }
       const result = await res.json().catch(() => ({}));
       if (result?.kind) kind = String(result.kind);
+      if (result?.source?.name) from = ` from ${wrapUntrusted(String(result.source.name))}`;
     }
 
-    const conversation = await loadConversationHead(ctx.supabase, conversationId).catch(() => null);
-    const title = conversationTitle(conversation, ctx.currentUser.id);
     const withCaption = caption ? ` with caption "${caption}"` : "";
-    return textResult(`Sent the ${kind} to ${title}${withCaption}.`);
+    return textResult(`Sent the ${kind}${from} to ${title}${withCaption}.`);
   },
 });
