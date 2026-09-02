@@ -390,6 +390,43 @@ describe("AuthForm", () => {
     expect(navigation.replace).not.toHaveBeenCalledWith("/users");
   });
 
+  it("does not let the auto sign-in redirect race past an offered passkey enrollment", async () => {
+    const user = userEvent.setup();
+    const signUpWithPasskey = vi.fn(async () => {
+      // Mirrors real Supabase timing: onAuthStateChange flips currentUser
+      // synchronously inside signUp(), before this promise resolves back
+      // to the caller -- reproduces the live bug where the account got
+      // created and signed in with zero passkeys ever registered.
+      session.currentUser = { id: "new-user" };
+      return { ok: true as const, value: { hasSession: true } };
+    });
+    boundary.gateway = createGateway({ signUpWithPasskey });
+    const view = renderAuthForm();
+
+    await user.click(screen.getByRole("button", { name: "Create an account" }));
+    await user.type(screen.getByLabelText("Name"), "Ada Reader");
+    await user.type(screen.getByLabelText("Email"), "new@example.org");
+    await user.click(
+      screen.getByLabelText("Use a passkey instead of a password")
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Create account with a passkey" })
+    );
+
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith(
+        "/auth/passkey?next=%2Fusers"
+      )
+    );
+
+    // Simulate the reactive currentUser effect finally running now that
+    // the auth-state-change listener has updated it -- it must not
+    // clobber the enrollment redirect with a plain sign-in redirect.
+    view.rerender(authFormTree("/users"));
+
+    expect(navigation.replace).not.toHaveBeenCalledWith("/users");
+  });
+
   it("blocks passkey and variant actions while a password request is pending", async () => {
     const user = userEvent.setup();
     const password = deferred<AuthResult>();

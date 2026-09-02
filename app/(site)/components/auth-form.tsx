@@ -66,6 +66,14 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   const passkeyButtonRef = useRef<HTMLButtonElement>(null);
   const callbackAlertRef = useRef<HTMLDivElement>(null);
   const destination = sanitizeAuthReturnPath(returnPath);
+  // Supabase notifies onAuthStateChange (which flips currentUser here)
+  // synchronously inside signUp(), before the awaited signUp() call in
+  // submitPassword even resolves back to offerPasskeyEnrollment() -- so
+  // without this flag, the effect below wins the race and replaces straight
+  // to `destination`, silently skipping the enrollment page the caller just
+  // asked for. Reproduced live: a signup-with-passkey ended up on
+  // /conversations with zero passkeys registered on the account.
+  const skipAutoRedirectRef = useRef(false);
 
   const getGateway = () => {
     gatewayRef.current ??= createAuthGateway();
@@ -85,7 +93,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   }, []);
 
   useEffect(() => {
-    if (currentUser) router.replace(destination);
+    if (currentUser && !skipAutoRedirectRef.current) router.replace(destination);
   }, [currentUser, destination, router]);
 
   useEffect(() => {
@@ -113,6 +121,7 @@ const AuthForm = ({ returnPath, callbackError }: AuthFormProps) => {
   }, [destination, router]);
 
   const offerPasskeyEnrollment = useCallback(() => {
+    skipAutoRedirectRef.current = true;
     router.replace(buildPasskeyEnrollmentPath(destination));
   }, [destination, router]);
 
