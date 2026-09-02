@@ -79,3 +79,17 @@ it("supplies the catalog to the session provider without registering or adding a
   unmount();
   expect(bridge.replaceAuthenticatedTools).toHaveBeenLastCalledWith([]);
 });
+
+it("keeps one catalog across rerenders even when hook results change identity", async () => {
+  const { rerender } = render(<WebmcpTools />);
+  await waitFor(() =>
+    expect(bridge.replaceAuthenticatedTools).toHaveBeenCalledTimes(1)
+  );
+
+  // The mocked useRouter/useConfirmBridge hand back fresh objects on every
+  // render, which is what a route change does to a consumer.
+  rerender(<WebmcpTools />);
+  rerender(<WebmcpTools />);
+
+  expect(bridge.replaceAuthenticatedTools).toHaveBeenCalledTimes(1);
+});

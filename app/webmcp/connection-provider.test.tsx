@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { hydrateRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -387,6 +388,53 @@ describe("WebMCPConnectionProvider", () => {
       route: "/users",
       state: "CONNECTED",
       authenticated: true,
+    });
+  });
+
+  it("keeps the registered scope when a route change rebuilds the catalog", async () => {
+    // A consumer that rebuilds its tool array on every navigation, the way a
+    // hook-driven catalog does when a dependency changes identity.
+    const RouteCatalog = () => {
+      const pathname = usePathname();
+      const tools = useMemo<WebMCPTool[]>(
+        () => [
+          {
+            ...createStubTool("draft_message"),
+            execute: async () => toolResult({ seenRoute: pathname }),
+          },
+        ],
+        [pathname]
+      );
+      return <CatalogInstaller tools={tools} />;
+    };
+    const modelContext = createFakeModelContext();
+    const renderTree = () => (
+      <WebMCPConnectionProvider
+        modelContext={modelContext}
+        currentUserId="user-a"
+        registry={lifecycleTestRegistry}
+      >
+        <RouteCatalog />
+        <ConnectionProbe />
+      </WebMCPConnectionProvider>
+    );
+    const { rerender } = render(renderTree());
+    await waitFor(() =>
+      expect(modelContext.activeNames()).toContain("draft_message")
+    );
+    const settledRegistrationCount = modelContext.registrationCount();
+    const registered = modelContext
+      .activeTools()
+      .find((item) => item.name === "draft_message")!;
+
+    navigation.pathname = "/conversations/abc";
+    rerender(renderTree());
+    await act(async () => Promise.resolve());
+
+    expect(modelContext.registrationCount()).toBe(settledRegistrationCount);
+    expect(modelContext.abortedRegistrationCount()).toBe(0);
+    expect(parseToolResult(await registered.tool.execute({}))).toEqual({
+      seenRoute: "/conversations/abc",
     });
   });
 
