@@ -10,11 +10,11 @@
 A blind or low-vision user can ask an AI agent to find, read, summarize, draft,
 send, react, and navigate without making the agent guess where to click.
 
-[Open the live app](https://messenger-clone-kappa-smoky.vercel.app) ·
-[View the public repository](https://github.com/hungtruongOwolf/webmcp-challenge) ·
+[Open the live app](https://messenger-clone-kappa-smoky.vercel.app) |
+[View the public repository](https://github.com/hungtruongOwolf/webmcp-challenge) |
 **Demo video: coming soon**
 
-`WebMCP` · `Next.js 15` · `React 19` · `TypeScript` · `Supabase` · `MIT`
+`WebMCP` | `Next.js 15` | `React 19` | `TypeScript` | `Supabase` | `MIT`
 </div>
 
 ---
@@ -24,18 +24,20 @@ send, react, and navigate without making the agent guess where to click.
 | Requirement | Link or status |
 |---|---|
 | Working application | [messenger-clone-kappa-smoky.vercel.app](https://messenger-clone-kappa-smoky.vercel.app) |
-| Demo video | **Coming soon** — public YouTube link will be added here |
+| Demo video | **Coming soon** -- public YouTube link will be added here |
 | Public source code | [github.com/hungtruongOwolf/webmcp-challenge](https://github.com/hungtruongOwolf/webmcp-challenge) |
 | Open-source license | [MIT License](LICENSE) |
-| WebMCP implementation | [Registration lifecycle](app/webmcp/connection-provider.tsx) · [tool catalog](lib/webmcp/register.ts) |
+| WebMCP implementation | [Registration lifecycle](app/webmcp/connection-provider.tsx) | [tool catalog](lib/webmcp/register.ts) |
 
 ## Judge quick start
 
 1. Open the [live app](https://messenger-clone-kappa-smoky.vercel.app) in
    ChatGPT's in-app browser, or in Google Chrome 149+ with
    `chrome://flags/#enable-webmcp-testing` enabled.
-2. Sign in or create an account. If judging credentials are supplied with the
-   Devpost submission, use those credentials.
+2. Sign in or create an account.
+   If judging credentials are supplied with the Devpost submission, use those credentials.
+   Sign-in is a human step by design: no WebMCP tool signs in or creates an account, so the agent only ever acts inside a session a person chose.
+   If you open `/` while already signed in, the page shows a signed-in panel with the account name, a "Continue as ..." button, and a "Sign out and use a different account" button instead of silently redirecting.
 3. Confirm that the page reports **WebMCP connected**.
 4. Ask the agent to try a few natural-language tasks:
 
@@ -80,14 +82,14 @@ control, or knowledge of the current visual layout.
 WebMCP lets the human express intent while the application supplies safe,
 structured capabilities.
 
-| The person asks… | The agent can… | The experience improves because… |
+| The person asks... | The agent can... | The experience improves because... |
 |---|---|---|
-| “What did I miss?” | List, read, and summarize the relevant conversation | The user hears one useful recap instead of traversing a message history |
-| “Did anyone mention the launch date?” | Search one conversation with an optional date range | The answer comes from structured results, not visual page scanning |
-| “Reply that Friday works.” | Save a draft, let the user review it, then send it | Composition and execution are separate, preserving human control |
-| “What is in the photo?” | Retrieve the authorized image and ask a vision model to describe it | Visual content becomes accessible inside the same conversation flow |
-| “Start a group with Maya and Tony.” | Resolve people and create the group | A multi-screen workflow becomes one clear request |
-| “Leave this group.” | Explain the impact and require a second confirmed call | A destructive action stays deliberate and auditable |
+| "What did I miss?" | List, read, and summarize the relevant conversation | The user hears one useful recap instead of traversing a message history |
+| "Did anyone mention the launch date?" | Search one conversation with an optional date range | The answer comes from structured results, not visual page scanning |
+| "Reply that Friday works." | Save a draft, let the user review it, then send it | Composition and execution are separate, preserving human control |
+| "What is in the photo?" | Retrieve the authorized image and ask a vision model to describe it | Visual content becomes accessible inside the same conversation flow |
+| "Start a group with Maya and Tony." | Resolve people and create the group | A multi-screen workflow becomes one clear request |
+| "Leave this group." | Explain the impact and require a second confirmed call | A destructive action stays deliberate and auditable |
 
 Before WebMCP, completing these flows by voice required a screen-driving agent
 to repeatedly interpret the interface. With Verb, people choose the goal and
@@ -104,6 +106,7 @@ retain control; agents combine explicit tools to carry it out.
 - AI summaries that combine read and unread history into one coherent recap
 - AI image descriptions for blind and low-vision users
 - Passkey and password authentication
+- A signed-in panel on the sign-in page that names the current account and offers Continue or Sign out, so creating an account for a second person never lands in the first person's session
 - Keyboard and screen-reader-conscious authentication and navigation
 
 ## WebMCP implementation
@@ -112,6 +115,9 @@ Verb uses the browser's `document.modelContext` API directly.
 A public `get_connection_status` tool is available before authentication.
 After sign-in, the connection provider registers 25 session-scoped tools and removes them with an `AbortSignal` when the session changes.
 Registration is keyed on the set of tool names, so client-side navigation never re-registers the catalog and an agent's tool handles stay valid across `open_conversation`.
+Tool handlers live behind refs, so the catalog reads fresh state on every call without being torn down and rebuilt.
+There is no sign-in tool on purpose.
+A person signs in on the page first, and the agent works inside that session.
 
 The real registration lifecycle lives in
 [`app/webmcp/connection-provider.tsx`](app/webmcp/connection-provider.tsx).
@@ -148,15 +154,15 @@ function that uses the current user's browser session.
 
 ```text
 Human voice or text
-        ↓
+        v
 AI agent chooses a registered tool
-        ↓
+        v
 document.modelContext.registerTool(...)
-        ↓
+        v
 Verb validates input and uses the signed-in Supabase session
-        ↓
+        v
 Postgres row-level security authorizes the operation
-        ↓
+        v
 Small, structured result returns to the agent and activity panel
 ```
 
@@ -206,9 +212,13 @@ Verb treats the application and database as the authority, not the agent.
   text is mistaken for an instruction.
 - **Bounded output:** shared result clamping keeps tool responses within a
   1,500-character budget.
-- **Deliberate writes:** sending uses a draft-then-send pattern. Leaving or
-  deleting a conversation requires a second call with `confirm: true` after
-  the user agrees.
+- **Deliberate writes:** `send_message` accepts text directly for a one-call
+  send, and `draft_message` then `send_message` lets the person review first.
+  Leaving or deleting a conversation and deleting a message require a second
+  call with `confirm: true` after the user agrees.
+- **Sign-in stays human:** the catalog has no sign-in or sign-up tool. The
+  agent cannot pick or create an account; it only acts in the session a person
+  opened on the page.
 - **Lifecycle cleanup:** registration uses abort signals so tools from an old
   or signed-out session do not remain active.
 
@@ -290,6 +300,12 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Upgrading an existing project
+
+If your Supabase project was set up before message editing existed, run `npx supabase db push` again.
+It applies `supabase/migrations/20260902000000_message_edit_delete.sql`, which adds `edited_at` and `deleted_at` to `messages`, relaxes the content check so a soft-deleted row may be empty, and grants authors the update policy that `edit_message` and `delete_message` rely on.
+Without that migration those two tools fail with a database error and edited or deleted messages do not render.
 
 > [!IMPORTANT]
 > `NEXT_PUBLIC_APP_ORIGIN` and `NEXT_PUBLIC_PASSKEY_RP_ID` must describe the
