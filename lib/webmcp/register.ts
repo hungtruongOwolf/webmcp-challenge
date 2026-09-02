@@ -20,6 +20,7 @@ import { setupPasskey } from "@/lib/webmcp/tools/setup-passkey";
 import { reactToMessage } from "@/lib/webmcp/tools/react-to-message";
 import { sendSticker } from "@/lib/webmcp/tools/send-sticker";
 import { summarizeConversation } from "@/lib/webmcp/tools/summarize-conversation";
+import { waitForNewMessages } from "@/lib/webmcp/tools/wait-for-new-messages";
 
 const TOOL_FACTORIES = [
   listConversations,
@@ -42,6 +43,7 @@ const TOOL_FACTORIES = [
   reactToMessage,
   sendSticker,
   summarizeConversation,
+  waitForNewMessages,
 ];
 
 const summarizeInput = (input: Record<string, unknown>) => {
