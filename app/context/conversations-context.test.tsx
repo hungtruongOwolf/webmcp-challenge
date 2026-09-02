@@ -200,6 +200,49 @@ describe("ConversationsProvider new-message announcement", () => {
     expect(screen.getByTestId("announcement")).toHaveTextContent("");
   });
 
+  it("does not announce an UPDATE broadcast such as an edit or soft delete", () => {
+    openConversationId.current = "convo-b";
+    renderProvider([makeConversation("convo-a")]);
+
+    emitBroadcast({
+      table: "messages",
+      operation: "UPDATE",
+      record: {
+        conversation_id: "convo-a",
+        sender_id: "other",
+        body: "are you free tonight? (fixed typo)",
+      },
+      old_record: {
+        conversation_id: "convo-a",
+        sender_id: "other",
+        body: "are you free tonite?",
+      },
+    });
+
+    expect(screen.getByTestId("announcement")).toHaveTextContent("");
+  });
+
+  it("does not announce a payload carrying old_record, like the read-receipt re-broadcast", () => {
+    openConversationId.current = "convo-b";
+    renderProvider([makeConversation("convo-a")]);
+
+    emitBroadcast({
+      table: "messages",
+      record: {
+        conversation_id: "convo-a",
+        sender_id: "other",
+        body: "are you free tonight?",
+      },
+      old_record: {
+        conversation_id: "convo-a",
+        sender_id: "other",
+        body: "are you free tonight?",
+      },
+    });
+
+    expect(screen.getByTestId("announcement")).toHaveTextContent("");
+  });
+
   it("describes an image or file when there is no text body", () => {
     openConversationId.current = "convo-b";
     renderProvider([makeConversation("convo-a")]);
