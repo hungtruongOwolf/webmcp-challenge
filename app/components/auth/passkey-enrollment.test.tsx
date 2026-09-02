@@ -65,15 +65,26 @@ const createGateway = (
   deletePasskey: async () => success,
 });
 
-const enrollmentTree = (gateway?: AuthGateway, returnPath = "/users") => (
+const enrollmentTree = (
+  gateway?: AuthGateway,
+  returnPath = "/users",
+  autoStart = false
+) => (
     <WebMCPConnectionProvider modelContext={null} currentUserId="user-a">
       <ConnectionStatusIndicator />
-      <PasskeyEnrollment returnPath={returnPath} gateway={gateway} />
+      <PasskeyEnrollment
+        returnPath={returnPath}
+        gateway={gateway}
+        autoStart={autoStart}
+      />
     </WebMCPConnectionProvider>
 );
 
-const renderEnrollment = (gateway?: AuthGateway, returnPath = "/users") =>
-  render(enrollmentTree(gateway, returnPath));
+const renderEnrollment = (
+  gateway?: AuthGateway,
+  returnPath = "/users",
+  autoStart = false
+) => render(enrollmentTree(gateway, returnPath, autoStart));
 
 const waitForProvider = () =>
   waitFor(() =>
@@ -219,6 +230,66 @@ describe("PasskeyEnrollment", () => {
     expect(registerPasskey).not.toHaveBeenCalled();
     expect(consumeFocusAfterAuth()).toBe(true);
     expect(navigation.replace).toHaveBeenCalledWith("/users");
+  });
+
+  it("auto-starts the ceremony with no click when arriving from the passkey sign-up button", async () => {
+    const registerPasskey = vi.fn(async () => success);
+    renderEnrollment(createGateway(registerPasskey), "/users", true);
+    await waitForProvider();
+
+    await waitFor(() => expect(registerPasskey).toHaveBeenCalledOnce());
+    expect(
+      screen.queryByRole("button", { name: "Setting up…" })
+    ).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/users")
+    );
+  });
+
+  it("does not auto-start without the flag, even though the page could", async () => {
+    const registerPasskey = vi.fn(async () => success);
+    renderEnrollment(createGateway(registerPasskey), "/users", false);
+    await waitForProvider();
+
+    expect(registerPasskey).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Set up passkey" })
+    ).toBeEnabled();
+  });
+
+  it("waits for readiness before auto-starting, then fires once", async () => {
+    browser.readiness = {
+      status: "checking",
+      message: "Checking passkey support…",
+    };
+    const registerPasskey = vi.fn(async () => success);
+    const gateway = createGateway(registerPasskey);
+    const view = renderEnrollment(gateway, "/users", true);
+    await waitForProvider();
+
+    expect(registerPasskey).not.toHaveBeenCalled();
+
+    browser.readiness = { status: "ready", message: "Passkeys are available." };
+    view.rerender(enrollmentTree(gateway, "/users", true));
+
+    await waitFor(() => expect(registerPasskey).toHaveBeenCalledOnce());
+  });
+
+  it("does not auto-retry after an auto-started attempt is cancelled", async () => {
+    const registerPasskey = vi.fn(async () => ({
+      ok: false as const,
+      code: "PASSKEY_CANCELLED" as const,
+    }));
+    renderEnrollment(createGateway(registerPasskey), "/users", true);
+    await waitForProvider();
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Passkey sign-in cancelled. Choose another sign-in method when ready."
+      )
+    );
+
+    expect(registerPasskey).toHaveBeenCalledOnce();
   });
 
   it.each<PasskeyReadiness>([

@@ -289,6 +289,7 @@ describe("EmailAuthForm", () => {
     });
     expect(signUpWithPassword).not.toHaveBeenCalled();
     await waitFor(() => expect(onPasskeyEnrollment).toHaveBeenCalledOnce());
+    expect(onPasskeyEnrollment).toHaveBeenCalledWith(true);
   });
 
   it("does not block the passkey sign-up button on the still-empty password field", async () => {
@@ -326,6 +327,7 @@ describe("EmailAuthForm", () => {
     await user.click(screen.getByRole("button", { name: "Create account" }));
 
     expect(onPasskeyEnrollment).toHaveBeenCalledOnce();
+    expect(onPasskeyEnrollment).toHaveBeenCalledWith();
   });
 
   it("announces email confirmation after registration without a session", async () => {

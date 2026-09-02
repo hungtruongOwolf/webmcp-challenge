@@ -25,7 +25,7 @@ export type EmailAuthFormProps = {
   returnPath: string;
   gateway: AuthGateway;
   onAuthenticated: () => void;
-  onPasskeyEnrollment: () => void;
+  onPasskeyEnrollment: (auto?: boolean) => void;
   isPending: boolean;
   onSubmissionStart: () => boolean;
   onSubmissionEnd: () => void;
@@ -96,7 +96,10 @@ export const EmailAuthForm = ({
       return;
     }
     if (result.value.hasSession) {
-      onPasskeyEnrollment();
+      // The user already chose "passkey" explicitly by clicking this
+      // button -- auto-start the WebAuthn ceremony on the enrollment page
+      // instead of making them click a second confirm.
+      onPasskeyEnrollment(true);
       return;
     }
     returnToSignedOut("Check your email to finish creating your account.");

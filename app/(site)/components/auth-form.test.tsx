@@ -412,7 +412,7 @@ describe("AuthForm", () => {
 
     await waitFor(() =>
       expect(navigation.replace).toHaveBeenCalledWith(
-        "/auth/passkey?next=%2Fusers"
+        "/auth/passkey?next=%2Fusers&auto=1"
       )
     );
 

@@ -17,11 +17,13 @@ import { useWebMCPConnection } from "@/app/webmcp/connection-provider";
 type PasskeyEnrollmentProps = {
   returnPath: string;
   gateway?: AuthGateway;
+  autoStart?: boolean;
 };
 
 export const PasskeyEnrollment = ({
   returnPath,
   gateway,
+  autoStart = false,
 }: PasskeyEnrollmentProps) => {
   const router = useRouter();
   const { announce } = useWebMCPConnection();
@@ -31,6 +33,7 @@ export const PasskeyEnrollment = ({
   const [operationError, setOperationError] = useState<string | null>(null);
   const enrollButtonRef = useRef<HTMLButtonElement>(null);
   const operationAlertRef = useRef<HTMLDivElement>(null);
+  const hasAutoStartedRef = useRef(false);
   const destination = sanitizeAuthReturnPath(returnPath);
 
   const getGateway = () => {
@@ -75,6 +78,21 @@ export const PasskeyEnrollment = ({
     markFocusAfterAuth();
     router.replace(destination);
   };
+
+  // Coming from the passkey sign-up button (not the password path's
+  // optional upsell), the user already asked for a passkey explicitly --
+  // start the WebAuthn ceremony as soon as it's possible instead of making
+  // them click "Set up passkey" a second time. Only the first ready render
+  // auto-fires; a cancelled/failed attempt still falls back to the manual
+  // buttons below rather than retrying in a loop.
+  useEffect(() => {
+    if (!autoStart || hasAutoStartedRef.current || readiness.status !== "ready") {
+      return;
+    }
+    hasAutoStartedRef.current = true;
+    void enroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, readiness.status]);
 
   return (
     <div className="mt-8 space-y-4">

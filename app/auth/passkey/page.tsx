@@ -2,14 +2,15 @@ import { PasskeyEnrollment } from "@/app/components/auth/passkey-enrollment";
 import { sanitizeAuthReturnPath } from "@/app/libs/auth/return-path";
 
 type PasskeyPageProps = {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{ next?: string | string[]; auto?: string | string[] }>;
 };
 
 export default async function PasskeyPage({ searchParams }: PasskeyPageProps) {
-  const { next } = await searchParams;
+  const { next, auto } = await searchParams;
   const returnPath = sanitizeAuthReturnPath(
     typeof next === "string" ? next : undefined
   );
+  const autoStart = auto === "1";
 
   return (
     <main className="flex min-h-full items-center justify-center bg-gray-100 px-4 py-12">
@@ -26,7 +27,7 @@ export default async function PasskeyPage({ searchParams }: PasskeyPageProps) {
           or a security key for a faster sign-in next time. You can also add
           or remove passkeys later in settings.
         </p>
-        <PasskeyEnrollment returnPath={returnPath} />
+        <PasskeyEnrollment returnPath={returnPath} autoStart={autoStart} />
       </section>
     </main>
   );
