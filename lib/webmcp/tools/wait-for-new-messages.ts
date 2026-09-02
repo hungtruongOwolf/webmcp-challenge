@@ -19,7 +19,6 @@ type IncomingMessage = {
 type WaitOptions = {
   ctx: ToolContext;
   conversationId: string | null;
-  since: string;
   timeoutMs: number;
 };
 
@@ -29,13 +28,13 @@ const isIncoming = (value: unknown): value is IncomingMessage =>
   typeof (value as IncomingMessage).id === "string" &&
   typeof (value as IncomingMessage).created_at === "string";
 
-async function pollNewMessages(options: WaitOptions): Promise<IncomingMessage[]> {
+/** Newest messages from other people, newest first. */
+async function fetchRecent(options: WaitOptions): Promise<IncomingMessage[]> {
   let query = options.ctx.supabase
     .from("messages")
     .select("id, conversation_id, sender_id, body, image, file_name, created_at")
-    .gt("created_at", options.since)
     .neq("sender_id", options.ctx.currentUser.id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(MAX_MESSAGES);
 
   if (options.conversationId) query = query.eq("conversation_id", options.conversationId);
@@ -53,14 +52,19 @@ async function pollNewMessages(options: WaitOptions): Promise<IncomingMessage[]>
  * way out would silence the "New message from ..." announcements until
  * reload. When the provider reports the channel is not live (blocked proxy,
  * failed join), the tool polls instead.
+ *
+ * "New" is decided by id, not by created_at: the client clock can run ahead
+ * of Postgres, and the two format timestamps differently, so a string or
+ * Date comparison against a local "since" can silently drop a real reply.
  */
 function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null> {
-  const { ctx, conversationId, since, timeoutMs } = options;
+  const { ctx, conversationId, timeoutMs } = options;
   const userId = ctx.currentUser.id;
 
   return new Promise((resolve) => {
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
+    let seenAtStart: Set<string> | null = null;
 
     const finish = (messages: IncomingMessage[] | null) => {
       if (settled) return;
@@ -73,13 +77,25 @@ function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null
 
     const accept = (record: IncomingMessage) =>
       record.sender_id !== userId &&
-      record.created_at > since &&
       (!conversationId || record.conversation_id === conversationId);
 
-    const pollOnce = async () => {
+    const snapshotExisting = async () => {
       try {
-        const found = (await pollNewMessages(options)).filter(accept);
-        if (found.length > 0) finish(found);
+        seenAtStart = new Set((await fetchRecent(options)).map((m) => m.id));
+      } catch {
+        // The next poll tick retries; a broadcast never needs the snapshot.
+      }
+    };
+
+    const pollOnce = async () => {
+      if (seenAtStart === null) {
+        await snapshotExisting();
+        return;
+      }
+      const known = seenAtStart;
+      try {
+        const found = (await fetchRecent(options)).filter((m) => !known.has(m.id) && accept(m));
+        if (found.length > 0) finish(found.reverse());
       } catch {
         // A failed poll is not fatal: the next tick or the timeout settles it.
       }
@@ -109,6 +125,9 @@ function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null
       if (accept(payload.record)) finish([payload.record]);
     });
 
+    // Taken even while live, so a mid-wait fallback to polling still measures
+    // "new" from the moment the call started.
+    void snapshotExisting();
     if (!ctx.isInboxLive()) startPolling();
   });
 }
@@ -145,7 +164,6 @@ export const waitForNewMessages: ToolFactory = (ctx) => ({
     const messages = await waitForIncoming({
       ctx,
       conversationId,
-      since: new Date().toISOString(),
       timeoutMs: timeoutSeconds * 1000,
     });
 
@@ -172,7 +190,8 @@ export const waitForNewMessages: ToolFactory = (ctx) => ({
         : m.file_name
           ? `[shared a file "${m.file_name}" -- read_file message_id="${m.id}"]`
           : m.body || "";
-      return `${names.get(m.sender_id) || "Unknown"} (conversation ${m.conversation_id}): ${wrapUntrusted(body)}`;
+      const name = wrapUntrusted(names.get(m.sender_id) || "Unknown");
+      return `${name} (conversation ${m.conversation_id}): ${wrapUntrusted(body)}`;
     });
 
     return textResult(`timedOut: false. ${messages.length} new message(s):\n` + lines.join("\n"));
