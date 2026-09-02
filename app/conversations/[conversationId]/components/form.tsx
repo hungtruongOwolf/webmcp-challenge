@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { useForm } from "react-hook-form";
-import type { FieldValues, SubmitHandler } from "react-hook-form";
 import { HiPaperAirplane, HiOutlinePhoto, HiOutlinePaperClip } from "react-icons/hi2";
 
 import useConversation from "@/app/hooks/use-conversation";
@@ -21,22 +19,22 @@ const Form = () => {
   const currentUser = useCurrentUser();
   const [draft, setDraft] = useState("");
   const [uploading, setUploading] = useState(false);
+  const messageInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const { handleSubmit, reset } = useForm<FieldValues>({
-    defaultValues: { message: "" },
-  });
+  const currentUserId = currentUser?.id ?? null;
 
   // Seeds the input with whatever draft_message (the WebMCP tool) last saved
   // for this conversation -- otherwise a drafted reply never surfaces here.
   // Clearing synchronously (not waiting for the fetch below) matters: without
   // it, switching conversations fast and hitting Enter before the fetch
   // resolves would send the PREVIOUS conversation's leftover draft text into
-  // the new one.
+  // the new one. Keyed on the user id, not the user object: Supabase hands
+  // out a fresh user object on every token refresh, which used to wipe
+  // whatever was typed.
   useEffect(() => {
     setDraft("");
-    if (!conversationId || !currentUser) return;
+    if (!conversationId || !currentUserId) return;
 
     let cancelled = false;
     const supabase = createClient();
@@ -45,7 +43,7 @@ const Form = () => {
       .from("drafts")
       .select("body")
       .eq("conversation_id", conversationId)
-      .eq("user_id", currentUser.id)
+      .eq("user_id", currentUserId)
       .maybeSingle()
       .then(({ data }) => {
         if (!cancelled) setDraft(data?.body ?? "");
@@ -54,14 +52,20 @@ const Form = () => {
     return () => {
       cancelled = true;
     };
-  }, [conversationId, currentUser]);
+  }, [conversationId, currentUserId]);
 
-  const onSubmit: SubmitHandler<FieldValues> = async () => {
-    const message = draft.trim();
-    if (!message) return;
+  const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    // The element is the source of truth. Agents and test harnesses write to
+    // the node directly, and React's value tracker swallows that input event,
+    // so the state alone can lag behind what the person sees in the box.
+    const message = (messageInputRef.current?.value ?? draft).trim();
+    if (!message) {
+      messageInputRef.current?.focus();
+      return;
+    }
 
     setDraft("");
-    reset();
 
     try {
       // The realtime subscription in Thread picks this up for everyone,
@@ -223,10 +227,11 @@ const Form = () => {
         <StickerPicker disabled={uploading} onPick={onPickSticker} />
 
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={onSubmit}
           style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "flex-end", gap: 10 }}
         >
           <input
+            ref={messageInputRef}
             type="text"
             aria-label="Type a message"
             placeholder="Type a message..."
@@ -250,7 +255,6 @@ const Form = () => {
           <button
             type="submit"
             aria-label="Send message"
-            disabled={!draft.trim()}
             style={{
               flex: "none",
               width: 44,
