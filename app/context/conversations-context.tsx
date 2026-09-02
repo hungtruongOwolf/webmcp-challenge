@@ -16,6 +16,7 @@ import type { FullConversationType } from "@/app/types";
 import { useCurrentUser } from "@/app/context/current-user-context";
 import { createClient } from "@/app/libs/supabase/client";
 import useConversation from "@/app/hooks/use-conversation";
+import type { InboxEvent, InboxListener } from "@/lib/webmcp/types";
 
 const CONVERSATION_SELECT = `id, name, is_group, created_at, last_message_at,
   members:conversation_members ( profile:profiles (*) ),
@@ -34,6 +35,9 @@ type ConversationsContextValue = {
    * runs when asked -- there's no page-initiated push into ChatGPT Voice).
    */
   newMessageAnnouncement: string;
+  /** Lets WebMCP tools listen on the inbox channel this provider owns. */
+  subscribeToInbox: (listener: InboxListener) => () => void;
+  isInboxLive: () => boolean;
 };
 
 const ConversationsContext = createContext<ConversationsContextValue | null>(null);
@@ -57,6 +61,24 @@ export function ConversationsProvider({
   useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
+
+  const routerRef = useRef(router);
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+
+  const inboxListenersRef = useRef(new Set<InboxListener>());
+  const inboxLiveRef = useRef(false);
+  const emitInbox = useCallback((event: InboxEvent) => {
+    inboxListenersRef.current.forEach((listener) => listener(event));
+  }, []);
+  const subscribeToInbox = useCallback((listener: InboxListener) => {
+    inboxListenersRef.current.add(listener);
+    return () => {
+      inboxListenersRef.current.delete(listener);
+    };
+  }, []);
+  const isInboxLive = useCallback(() => inboxLiveRef.current, []);
 
   const fetchAndUpsertConversation = useCallback(async (id: string) => {
     const supabase = createClient();
@@ -111,6 +133,7 @@ export function ConversationsProvider({
 
     channel
       .on("broadcast", { event: "*" }, ({ payload }) => {
+        emitInbox({ type: "broadcast", payload });
         const table = payload?.table;
 
         if (table === "messages" && payload.record) {
@@ -147,19 +170,33 @@ export function ConversationsProvider({
           const id = payload.old_record?.id ?? payload.record?.id;
 
           setConversations((current) => current.filter((c) => c.id !== id));
-          if (conversationId === id) router.push("/conversations");
+          if (conversationIdRef.current === id) routerRef.current.push("/conversations");
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        const live = status === "SUBSCRIBED";
+        inboxLiveRef.current = live;
+        emitInbox({ type: "status", live });
+      });
 
     return () => {
+      inboxLiveRef.current = false;
+      emitInbox({ type: "status", live: false });
       supabase.removeChannel(channel);
     };
-  }, [currentUser?.id, conversationId, router, fetchAndUpsertConversation]);
+    // Keyed on the user only: rejoining on every navigation would drop any
+    // broadcast (and any waiting tool) in the leave/join gap.
+  }, [currentUser?.id, fetchAndUpsertConversation, emitInbox]);
 
   return (
     <ConversationsContext.Provider
-      value={{ conversations, ensureConversation, newMessageAnnouncement }}
+      value={{
+        conversations,
+        ensureConversation,
+        newMessageAnnouncement,
+        subscribeToInbox,
+        isInboxLive,
+      }}
     >
       {children}
     </ConversationsContext.Provider>

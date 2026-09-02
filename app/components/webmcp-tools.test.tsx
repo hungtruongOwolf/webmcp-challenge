@@ -21,6 +21,13 @@ vi.mock("@/app/context/confirm-bridge-context", () => ({
   useConfirmBridge: () => ({ requestConfirmation: vi.fn() }),
 }));
 
+vi.mock("@/app/context/conversations-context", () => ({
+  useConversationsList: () => ({
+    subscribeToInbox: vi.fn(() => () => undefined),
+    isInboxLive: vi.fn(() => false),
+  }),
+}));
+
 vi.mock("@/app/context/webmcp-activity-context", () => ({
   useWebmcpActivity: () => ({
     logEvent: vi.fn(),

@@ -1,4 +1,4 @@
-import type { ToolFactory, SupabaseBrowserClient } from "@/lib/webmcp/types";
+import type { ToolContext, ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
 
 const DEFAULT_TIMEOUT_SECONDS = 30;
@@ -17,8 +17,7 @@ type IncomingMessage = {
 };
 
 type WaitOptions = {
-  supabase: SupabaseBrowserClient;
-  userId: string;
+  ctx: ToolContext;
   conversationId: string | null;
   since: string;
   timeoutMs: number;
@@ -31,11 +30,11 @@ const isIncoming = (value: unknown): value is IncomingMessage =>
   typeof (value as IncomingMessage).created_at === "string";
 
 async function pollNewMessages(options: WaitOptions): Promise<IncomingMessage[]> {
-  let query = options.supabase
+  let query = options.ctx.supabase
     .from("messages")
     .select("id, conversation_id, sender_id, body, image, file_name, created_at")
     .gt("created_at", options.since)
-    .neq("sender_id", options.userId)
+    .neq("sender_id", options.ctx.currentUser.id)
     .order("created_at", { ascending: true })
     .limit(MAX_MESSAGES);
 
@@ -47,18 +46,19 @@ async function pollNewMessages(options: WaitOptions): Promise<IncomingMessage[]>
 }
 
 /**
- * Listens on the caller's own inbox topic (the same user:<uuid> broadcast the
- * sidebar uses, fed by the on_message_sidebar_broadcast trigger) and resolves
- * on the first message from someone else. Realtime can be blocked by a
- * proxy or fail to join, so a channel error switches to polling; a catch-up
- * poll right after joining covers a message that landed in the gap between
- * the call starting and the subscription going live.
+ * Listens through the sidebar's inbox feed (the user:<uuid> broadcast the
+ * ConversationsProvider already holds) and resolves on the first message from
+ * someone else. Opening a second channel on that topic is not an option:
+ * realtime-js would hand back the sidebar's channel, and removing it on the
+ * way out would silence the "New message from ..." announcements until
+ * reload. When the provider reports the channel is not live (blocked proxy,
+ * failed join), the tool polls instead.
  */
 function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null> {
-  const { supabase, userId, conversationId, since, timeoutMs } = options;
+  const { ctx, conversationId, since, timeoutMs } = options;
+  const userId = ctx.currentUser.id;
 
   return new Promise((resolve) => {
-    const channel = supabase.channel(`user:${userId}`, { config: { private: true } });
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
 
@@ -67,7 +67,7 @@ function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null
       settled = true;
       clearTimeout(timeout);
       if (pollTimer) clearTimeout(pollTimer);
-      void supabase.removeChannel(channel);
+      unsubscribe();
       resolve(messages);
     };
 
@@ -96,20 +96,20 @@ function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null
 
     const timeout = setTimeout(() => finish(null), timeoutMs);
 
-    channel
-      .on("broadcast", { event: "*" }, ({ payload }) => {
-        // Edits, deletions, and the read-receipt re-broadcast all carry an
-        // old_record; only a genuine insert is a new message.
-        if (payload?.table !== "messages" || !isIncoming(payload.record)) return;
-        if (payload.operation !== "INSERT" || payload.old_record) return;
-        if (accept(payload.record)) finish([payload.record]);
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") void pollOnce();
-        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-          startPolling();
-        }
-      });
+    const unsubscribe = ctx.subscribeToInbox((event) => {
+      if (event.type === "status") {
+        if (!event.live) startPolling();
+        return;
+      }
+      const { payload } = event;
+      // Edits, deletions, and the read-receipt re-broadcast all carry an
+      // old_record; only a genuine insert is a new message.
+      if (payload.table !== "messages" || !isIncoming(payload.record)) return;
+      if (payload.operation !== "INSERT" || payload.old_record) return;
+      if (accept(payload.record)) finish([payload.record]);
+    });
+
+    if (!ctx.isInboxLive()) startPolling();
   });
 }
 
@@ -143,8 +143,7 @@ export const waitForNewMessages: ToolFactory = (ctx) => ({
     );
 
     const messages = await waitForIncoming({
-      supabase: ctx.supabase,
-      userId: ctx.currentUser.id,
+      ctx,
       conversationId,
       since: new Date().toISOString(),
       timeoutMs: timeoutSeconds * 1000,
