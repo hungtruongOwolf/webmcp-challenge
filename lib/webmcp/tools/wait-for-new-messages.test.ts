@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { wrapUntrusted } from "@/lib/webmcp/budget";
+import type { SupabaseBrowserClient } from "@/lib/webmcp/types";
+
+type Table = Parameters<SupabaseBrowserClient["from"]>[0];
 
 import { waitForNewMessages } from "./wait-for-new-messages";
 import { createFakeContext, createFakeSupabase, resultText } from "./fake-supabase";
@@ -163,6 +166,43 @@ describe("wait_for_new_messages", () => {
     const result = await pending;
 
     expect(resultText(result)).toContain("are you there?");
+  });
+
+  it("does not start a second snapshot while the first is still in flight", async () => {
+    const fake = createFakeSupabase({
+      results: {
+        messages: [{ data: [incoming().record] }],
+        profiles: [{ data: [{ id: "other-id", name: "Maya" }] }],
+      },
+    });
+    // The call-start snapshot hangs until released; the first poll tick fires meanwhile.
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const hanging: Record<string, unknown> = {
+      then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+        gate.then(() => ({ data: [], error: null })).then(resolve, reject),
+    };
+    const hangingChain: unknown = new Proxy(hanging, {
+      get: (target, prop: string) => (prop in target ? target[prop] : () => hangingChain),
+    });
+    let messageQueries = 0;
+    const supabase = {
+      ...fake.client,
+      from: (table: Table) =>
+        table === "messages" && messageQueries++ === 0 ? hangingChain : fake.client.from(table),
+    } as unknown as SupabaseBrowserClient;
+    const { ctx } = createFakeContext(supabase);
+
+    const pending = waitForNewMessages(ctx).execute({ timeout_seconds: 30 });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(messageQueries).toBe(1);
+
+    release();
+    await vi.advanceTimersByTimeAsync(2_000);
+    const result = await pending;
+
+    expect(resultText(result)).toContain("are you there?");
+    expect(messageQueries).toBe(2);
   });
 
   it("dedupes polled rows by id against what existed at call start, not by timestamp", async () => {

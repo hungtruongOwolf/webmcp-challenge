@@ -65,6 +65,7 @@ function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
     let seenAtStart: Set<string> | null = null;
+    let snapshot: Promise<void> | null = null;
 
     const finish = (messages: IncomingMessage[] | null) => {
       if (settled) return;
@@ -79,15 +80,26 @@ function waitForIncoming(options: WaitOptions): Promise<IncomingMessage[] | null
       record.sender_id !== userId &&
       (!conversationId || record.conversation_id === conversationId);
 
-    const snapshotExisting = async () => {
-      try {
-        seenAtStart = new Set((await fetchRecent(options)).map((m) => m.id));
-      } catch {
-        // The next poll tick retries; a broadcast never needs the snapshot.
+    // One snapshot at a time: a slow first query must not be doubled by the
+    // poll tick, or two "existing" sets race to define what counts as new.
+    const snapshotExisting = () => {
+      if (!snapshot) {
+        snapshot = fetchRecent(options)
+          .then((rows) => {
+            seenAtStart = new Set(rows.map((m) => m.id));
+          })
+          .catch(() => {
+            // The next poll tick retries; a broadcast never needs the snapshot.
+          })
+          .finally(() => {
+            snapshot = null;
+          });
       }
+      return snapshot;
     };
 
     const pollOnce = async () => {
+      if (snapshot) return;
       if (seenAtStart === null) {
         await snapshotExisting();
         return;
