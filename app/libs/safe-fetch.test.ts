@@ -71,14 +71,33 @@ describe("safeFetch", () => {
     expect(init.dispatcher).toBe(vi.mocked(Agent).mock.instances[0]);
 
     // net.connect asks the lookup either for one address or, with
-    // autoSelectFamily, for all of them; both shapes must yield only the
-    // address that passed the check so a re-resolve cannot swap it.
+    // autoSelectFamily, for all of them; both shapes must yield only
+    // addresses that passed the check so a re-resolve cannot swap one in.
     const single = vi.fn();
     const all = vi.fn();
     pinnedLookup()("public.example", {}, single);
     pinnedLookup()("public.example", { all: true }, all);
     expect(single).toHaveBeenCalledWith(null, "93.184.216.34", 4);
-    expect(all).toHaveBeenCalledWith(null, [{ address: "93.184.216.34", family: 4 }]);
+    // Every validated record, not just the first: an IPv4-only host needs
+    // the A record to fall back to when the AAAA one is listed first.
+    expect(all).toHaveBeenCalledWith(null, [
+      { address: "93.184.216.34", family: 4 },
+      { address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 },
+    ]);
+  });
+
+  it("keeps every validated address so the connector can fall back across families", async () => {
+    resolveWith({ "dual.example": [record("2606:2800:220:1:248:1893:25c8:1946", 6), record("93.184.216.34")] });
+    vi.mocked(fetch).mockResolvedValue(okResponse() as never);
+
+    await safeFetch("https://dual.example/a");
+
+    const all = vi.fn();
+    pinnedLookup()("dual.example", { all: true }, all);
+    expect(all).toHaveBeenCalledWith(null, [
+      { address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 },
+      { address: "93.184.216.34", family: 4 },
+    ]);
   });
 
   it("re-validates and re-pins each redirect hop", async () => {
