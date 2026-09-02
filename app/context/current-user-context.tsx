@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { PropsWithChildren } from "react";
 import type { User } from "@supabase/supabase-js";
 
+import { markFocusAfterSignOut } from "@/app/libs/auth/focus-after-auth";
 import { createClient } from "@/app/libs/supabase/client";
 
 const CurrentUserContext = createContext<User | null>(null);
@@ -26,7 +27,11 @@ export const CurrentUserProvider = ({ initialUser, children }: Props) => {
     const supabase = createClient();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // Every sign-out path (profile modal, the sign_out tool, the sign-in
+      // page itself) goes through here, so this is the one place to hand
+      // focus to the sign-in page afterwards.
+      if (event === "SIGNED_OUT") markFocusAfterSignOut();
       setUser(session?.user ?? null);
     });
 
