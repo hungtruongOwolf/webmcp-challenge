@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import toast from "react-hot-toast";
 import type { User } from "@/app/types";
 import { HiMagnifyingGlass, HiXMark } from "react-icons/hi2";
 
@@ -26,6 +27,7 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({
   const { members } = useActiveList();
   const [query, setQuery] = useState("");
   const [messagingId, setMessagingId] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -41,7 +43,12 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({
   if (!isOpen) return null;
 
   const message = (user: User) => {
+    // Creating the conversation and compiling the route can take seconds,
+    // and a row that looks untouched reads as a lost click.
+    if (messagingId) return;
+    const name = user.name || user.email || "this person";
     setMessagingId(user.id);
+    setStatus(`Opening chat with ${name}`);
 
     axios
       .post("/api/conversations", { userId: user.id })
@@ -49,6 +56,10 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({
         router.push(`/conversations/${res.data.id}`);
         onClose();
         setQuery("");
+      })
+      .catch(() => {
+        setStatus(`Could not open a chat with ${name}. Try again.`);
+        toast.error(`Could not open a chat with ${name}.`);
       })
       .finally(() => setMessagingId(null));
   };
@@ -90,21 +101,26 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({
         <div role="list" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "0 12px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
           {filtered.map((p) => {
             const online = members.indexOf(p.id) !== -1;
+            const opening = messagingId === p.id;
 
             return (
-              <div key={p.id} role="listitem" className="gm-row" style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12, padding: "9px 8px", borderRadius: 10 }}>
+              <div key={p.id} role="listitem" aria-busy={opening} className="gm-row" style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 12, padding: "9px 8px", borderRadius: 10 }}>
                 <Avatar user={p} size={40} showStatus={online} />
                 <span style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
                   <span style={{ fontSize: 14, fontWeight: 500 }}>{p.name}</span>
                   <span style={{ fontSize: 12, color: "var(--t3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.email}</span>
                 </span>
+                {/* aria-disabled rather than disabled so focus stays on the
+                    row while it is busy instead of jumping away. */}
                 <button
                   type="button"
+                  aria-label={`Message ${p.name || p.email || "this person"}`}
+                  aria-busy={opening}
+                  aria-disabled={opening || messagingId !== null}
                   onClick={() => message(p)}
-                  disabled={messagingId === p.id}
-                  style={{ flex: "none", height: 32, padding: "0 12px", border: "none", borderRadius: 10, background: "var(--sel)", color: "var(--accent-t)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                  style={{ flex: "none", height: 32, padding: "0 12px", border: "none", borderRadius: 10, background: opening ? "var(--hover)" : "var(--sel)", color: opening ? "var(--t2)" : "var(--accent-t)", fontSize: 12.5, fontWeight: 600, cursor: messagingId ? "default" : "pointer", opacity: messagingId && !opening ? 0.6 : 1 }}
                 >
-                  Message
+                  {opening ? "Opening chat" : "Message"}
                 </button>
               </div>
             );
@@ -116,6 +132,9 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({
             </div>
           )}
         </div>
+        <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {status}
+        </span>
         <div style={{ flex: "none", padding: "12px 20px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, boxShadow: "inset 0 1px 0 var(--hair)" }}>
           <span style={{ fontSize: 12, color: "var(--t3)" }}>{users.length} people</span>
           <button type="button" onClick={onOpenNewGroup} style={{ height: 36, padding: "0 14px", border: "none", borderRadius: 10, background: "var(--hover)", color: "var(--t1)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
