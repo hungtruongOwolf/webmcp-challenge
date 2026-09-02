@@ -1,16 +1,23 @@
 import type { ToolFactory } from "@/lib/webmcp/types";
 import { textResult, errorResult, wrapUntrusted } from "@/lib/webmcp/budget";
+import { conversationTitle, loadConversationHead } from "@/lib/webmcp/conversations";
 
 export const sendMessage: ToolFactory = (ctx) => ({
   name: "send_message",
   description:
-    "Send the currently saved draft for a conversation. Call draft_message before this.",
+    "Send a text message to a conversation. Pass `text` to write and send in one call -- the " +
+    "normal way to reply. Leave `text` out to send the draft previously saved with draft_message " +
+    "(the review-before-send flow, when the user wants to hear the wording first).",
   inputSchema: {
     type: "object",
     properties: {
       conversation_id: {
         type: "string",
-        description: "Conversation id with a saved draft, from draft_message.",
+        description: "Conversation id, from list_conversations or open_conversation.",
+      },
+      text: {
+        type: "string",
+        description: "The message to send. Omit to send the saved draft instead.",
       },
     },
     required: ["conversation_id"],
@@ -21,47 +28,50 @@ export const sendMessage: ToolFactory = (ctx) => ({
     const conversationId = String(input.conversation_id || "");
     if (!conversationId) return errorResult("conversation_id is required.");
 
-    const { data: draft, error: draftError } = await ctx.supabase
-      .from("drafts")
-      .select("body")
-      .eq("conversation_id", conversationId)
-      .eq("user_id", ctx.currentUser.id)
-      .maybeSingle();
+    const text = String(input.text || "").trim();
+    let body = text;
 
-    if (draftError) return errorResult(`Could not read the draft: ${draftError.message}`);
-    if (!draft?.body) {
-      return errorResult("No draft to send for this conversation. Call draft_message first.");
+    if (!body) {
+      const { data: draft, error: draftError } = await ctx.supabase
+        .from("drafts")
+        .select("body")
+        .eq("conversation_id", conversationId)
+        .eq("user_id", ctx.currentUser.id)
+        .maybeSingle();
+
+      if (draftError) return errorResult(`Could not read the draft: ${draftError.message}`);
+      if (!draft?.body) {
+        return errorResult(
+          "Nothing to send: pass text to send a message directly, or call draft_message first " +
+            "and then send_message without text."
+        );
+      }
+      body = draft.body;
     }
 
-    const { data: conversation } = await ctx.supabase
-      .from("conversations")
-      .select(`name, members:conversation_members ( profile:profiles (*) )`)
-      .eq("id", conversationId)
-      .maybeSingle();
-
-    const others = (conversation?.members ?? [])
-      .map((m: any) => m.profile)
-      .filter((p: any) => p.id !== ctx.currentUser.id);
-    const title = conversation?.name || others[0]?.name || "this conversation";
+    const conversation = await loadConversationHead(ctx.supabase, conversationId).catch(() => null);
+    const title = conversationTitle(conversation, ctx.currentUser.id);
 
     const res = await fetch("/api/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: draft.body, conversationId }),
+      body: JSON.stringify({ message: body, conversationId }),
     });
 
     if (!res.ok) return errorResult(`Could not send the message (status ${res.status}).`);
 
-    // Scoped to the exact draft body just sent, not just (conversation, user) --
-    // a draft_message call landing between the read above and this delete would
-    // otherwise get silently wiped instead of the message that was actually sent.
-    await ctx.supabase
-      .from("drafts")
-      .delete()
-      .eq("conversation_id", conversationId)
-      .eq("user_id", ctx.currentUser.id)
-      .eq("body", draft.body);
+    // Only the draft flow clears a draft, and only the exact body just sent:
+    // a draft_message call landing between the read above and this delete
+    // would otherwise get silently wiped instead of the message actually sent.
+    if (!text) {
+      await ctx.supabase
+        .from("drafts")
+        .delete()
+        .eq("conversation_id", conversationId)
+        .eq("user_id", ctx.currentUser.id)
+        .eq("body", body);
+    }
 
-    return textResult(wrapUntrusted(`Sent to ${title}: "${draft.body}"`));
+    return textResult(wrapUntrusted(`Sent to ${title}: "${body}"`));
   },
 });
