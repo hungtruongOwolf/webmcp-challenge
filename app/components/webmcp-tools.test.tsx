@@ -1,6 +1,8 @@
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
+import type { ToolContext } from "@/lib/webmcp/types";
+
 import WebmcpTools from "./webmcp-tools";
 
 const bridge = vi.hoisted(() => ({
@@ -9,8 +11,17 @@ const bridge = vi.hoisted(() => ({
   registerTool: vi.fn(),
 }));
 
+// Fresh objects per render, the way a route change looks to a consumer;
+// tests swap them to prove the catalog reads the newest one.
+const hooks = vi.hoisted(() => ({
+  router: { push: vi.fn() },
+  inbox: { subscribeToInbox: vi.fn(() => () => undefined), isInboxLive: vi.fn(() => false) },
+}));
+
+const catalog = vi.hoisted(() => ({ ctx: null as ToolContext | null }));
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => hooks.router,
 }));
 
 vi.mock("@/app/context/current-user-context", () => ({
@@ -22,10 +33,7 @@ vi.mock("@/app/context/confirm-bridge-context", () => ({
 }));
 
 vi.mock("@/app/context/conversations-context", () => ({
-  useConversationsList: () => ({
-    subscribeToInbox: vi.fn(() => () => undefined),
-    isInboxLive: vi.fn(() => false),
-  }),
+  useConversationsList: () => hooks.inbox,
 }));
 
 vi.mock("@/app/context/webmcp-activity-context", () => ({
@@ -47,19 +55,25 @@ vi.mock("@/app/webmcp/connection-provider", () => ({
 }));
 
 vi.mock("@/lib/webmcp/register", () => ({
-  createWebmcpTools: () => [
-    {
-      name: "list_conversations",
-      description: "List conversations",
-      execute: async () => ({ content: [{ type: "text", text: "ok" }] }),
-    },
-  ],
+  createWebmcpTools: (ctx: ToolContext) => {
+    catalog.ctx = ctx;
+    return [
+      {
+        name: "list_conversations",
+        description: "List conversations",
+        execute: async () => ({ content: [{ type: "text", text: "ok" }] }),
+      },
+    ];
+  },
 }));
 
 beforeEach(() => {
   bridge.replaceAuthenticatedTools.mockReset();
   bridge.setEnabled.mockReset();
   bridge.registerTool.mockReset();
+  hooks.router = { push: vi.fn() };
+  hooks.inbox = { subscribeToInbox: vi.fn(() => () => undefined), isInboxLive: vi.fn(() => false) };
+  catalog.ctx = null;
   Object.defineProperty(document, "modelContext", {
     configurable: true,
     value: { registerTool: bridge.registerTool },
@@ -93,10 +107,31 @@ it("keeps one catalog across rerenders even when hook results change identity", 
     expect(bridge.replaceAuthenticatedTools).toHaveBeenCalledTimes(1)
   );
 
-  // The mocked useRouter/useConfirmBridge hand back fresh objects on every
-  // render, which is what a route change does to a consumer.
+  hooks.router = { push: vi.fn() };
   rerender(<WebmcpTools />);
+  hooks.router = { push: vi.fn() };
   rerender(<WebmcpTools />);
 
   expect(bridge.replaceAuthenticatedTools).toHaveBeenCalledTimes(1);
+});
+
+it("routes the catalog's context through whatever the latest render provided", async () => {
+  const { rerender } = render(<WebmcpTools />);
+  await waitFor(() => expect(catalog.ctx).not.toBeNull());
+  const staleRouter = hooks.router;
+  const staleInbox = hooks.inbox;
+
+  hooks.router = { push: vi.fn() };
+  hooks.inbox = { subscribeToInbox: vi.fn(() => () => undefined), isInboxLive: vi.fn(() => true) };
+  rerender(<WebmcpTools />);
+
+  catalog.ctx!.navigate("/conversations/c1");
+  const listener = () => undefined;
+  catalog.ctx!.subscribeToInbox(listener);
+
+  expect(hooks.router.push).toHaveBeenCalledWith("/conversations/c1");
+  expect(staleRouter.push).not.toHaveBeenCalled();
+  expect(hooks.inbox.subscribeToInbox).toHaveBeenCalledWith(listener);
+  expect(staleInbox.subscribeToInbox).not.toHaveBeenCalled();
+  expect(catalog.ctx!.isInboxLive()).toBe(true);
 });
