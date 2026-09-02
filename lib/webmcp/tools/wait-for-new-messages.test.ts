@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { wrapUntrusted } from "@/lib/webmcp/budget";
+
 import { waitForNewMessages } from "./wait-for-new-messages";
 import { createFakeContext, createFakeSupabase, resultText } from "./fake-supabase";
 
@@ -41,11 +43,27 @@ describe("wait_for_new_messages", () => {
 
     expect(tool.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: true });
     expect(result.isError).toBeUndefined();
-    expect(resultText(result)).toContain("Maya");
-    expect(resultText(result)).toContain("are you there?");
+    // A display name is user-controlled, so it gets the same marker as the body.
+    expect(resultText(result)).toContain(wrapUntrusted("Maya"));
+    expect(resultText(result)).toContain(wrapUntrusted("are you there?"));
     expect(resultText(result)).toContain("conv-1");
     expect(fake.channels).toEqual([]);
     expect(inbox.listenerCount()).toBe(0);
+  });
+
+  it("returns a reply even when the client clock is ahead of the server", async () => {
+    const fake = createFakeSupabase({
+      results: { profiles: [{ data: [{ id: "other-id", name: "Maya" }] }] },
+    });
+    const { ctx, inbox } = createFakeContext(fake.client);
+    inbox.setLive(true);
+
+    const pending = waitForNewMessages(ctx).execute({ timeout_seconds: 30 });
+    await vi.advanceTimersByTimeAsync(0);
+    inbox.publish(incoming({ created_at: "2026-09-02T09:59:00+00:00" }));
+    const result = await pending;
+
+    expect(resultText(result)).toContain("are you there?");
   });
 
   it("never opens or removes the sidebar's inbox channel", async () => {
@@ -128,7 +146,7 @@ describe("wait_for_new_messages", () => {
   it("starts polling when the inbox channel drops mid-wait", async () => {
     const fake = createFakeSupabase({
       results: {
-        messages: [{ data: [incoming().record] }],
+        messages: [{ data: [] }, { data: [incoming().record] }],
         profiles: [{ data: [{ id: "other-id", name: "Maya" }] }],
       },
     });
@@ -137,12 +155,37 @@ describe("wait_for_new_messages", () => {
 
     const pending = waitForNewMessages(ctx).execute({ timeout_seconds: 30 });
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(fake.queries).toHaveLength(0);
+    // Only the call-start snapshot of existing ids; no polling while live.
+    expect(fake.queries.filter((q) => q.table === "messages")).toHaveLength(1);
 
     inbox.setLive(false);
     await vi.advanceTimersByTimeAsync(2_000);
     const result = await pending;
 
     expect(resultText(result)).toContain("are you there?");
+  });
+
+  it("dedupes polled rows by id against what existed at call start, not by timestamp", async () => {
+    const existing = incoming({ id: "msg-old", body: "old news", created_at: "2026-09-02T09:00:00+00:00" }).record;
+    // Stamped before the (fast) client clock: a created_at comparison would drop it.
+    const fresh = incoming({ id: "msg-new", body: "brand new", created_at: "2026-09-02T09:59:59+00:00" }).record;
+    const fake = createFakeSupabase({
+      results: {
+        messages: [{ data: [existing] }, { data: [fresh, existing] }],
+        profiles: [{ data: [{ id: "other-id", name: "Maya" }] }],
+      },
+    });
+    const { ctx } = createFakeContext(fake.client);
+
+    const pending = waitForNewMessages(ctx).execute({ timeout_seconds: 30 });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const result = await pending;
+
+    expect(resultText(result)).toContain("1 new message(s)");
+    expect(resultText(result)).toContain("brand new");
+    expect(resultText(result)).not.toContain("old news");
+    const pollOps = fake.opsFor("messages", 1).map(([op]) => op);
+    expect(pollOps).not.toContain("gt");
+    expect(pollOps).not.toContain("gte");
   });
 });
