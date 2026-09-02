@@ -6,6 +6,7 @@ import { searchMessages } from "@/lib/webmcp/tools/search-messages";
 import { searchPeople } from "@/lib/webmcp/tools/search-people";
 import { getMyProfile } from "@/lib/webmcp/tools/get-my-profile";
 import { openConversation } from "@/lib/webmcp/tools/open-conversation";
+import { startConversation } from "@/lib/webmcp/tools/start-conversation";
 import { createGroup } from "@/lib/webmcp/tools/create-group";
 import { draftMessage } from "@/lib/webmcp/tools/draft-message";
 import { sendMessage } from "@/lib/webmcp/tools/send-message";
@@ -26,6 +27,7 @@ const TOOL_FACTORIES = [
   searchPeople,
   getMyProfile,
   openConversation,
+  startConversation,
   createGroup,
   draftMessage,
   sendMessage,
