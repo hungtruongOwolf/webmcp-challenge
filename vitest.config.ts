@@ -13,6 +13,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     clearMocks: true,
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    // Agent worktrees under .claude carry their own node_modules and a second
+    // React copy, so their test files fail with "invalid hook call" if scanned.
+    exclude: [...configDefaults.exclude, "e2e/**", "**/.claude/**"],
   },
 });
