@@ -440,9 +440,12 @@ describe("AuthForm", () => {
     await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
   });
 
-  it("replaces the form with an opening status once sign-in here succeeds", async () => {
+  it("announces the opening notice through its own live region once sign-in here succeeds", async () => {
     const user = userEvent.setup();
     const view = renderAuthForm();
+    // The form's page-local region, as opposed to the indicator's role="status".
+    const liveRegion = document.querySelector('[aria-live="polite"]:not([role="status"])');
+    expect(liveRegion).not.toBeNull();
 
     await user.type(screen.getByLabelText("Email"), "mom@example.org");
     await user.type(screen.getByLabelText("Password"), "secret phrase");
@@ -461,6 +464,13 @@ describe("AuthForm", () => {
       screen.queryByRole("button", { name: "Continue as Mom" })
     ).not.toBeInTheDocument();
     expect(screen.getByText("Signed in as Mom. Opening your chats.")).toBeVisible();
+    // Some screen readers skip text present when a live region is inserted,
+    // so the notice must land in the region that was already mounted, and
+    // must not echo the indicator's "Signed in" wording.
+    expect(document.contains(liveRegion)).toBe(true);
+    await waitFor(() => expect(liveRegion).toHaveTextContent("Opening your chats, Mom."));
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).not.toHaveTextContent("Opening your chats");
   });
 
   it("blocks passkey and variant actions while a password request is pending", async () => {
