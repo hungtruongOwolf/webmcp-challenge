@@ -184,8 +184,8 @@ There are **26 registered tools in an authenticated session**: one public connec
 | Navigate | `start_conversation` | Create a one-to-one chat (or reuse it) and open it; reports `created` |
 | Compose | `draft_message` | Save a draft without sending it, for review before send |
 | Compose | `send_message` | Send text in one call, or send the saved draft when no text is given |
-| Compose | `send_attachment` | Send an image or file from a data URL, a public URL, or an existing message |
-| Compose | `forward_message` | Forward a message's text and attachment into another conversation |
+| Compose | `send_attachment` | Send an image or file from a data URL, a public URL, or an existing message; re-sending from a different conversation needs a confirmed second call |
+| Compose | `forward_message` | Forward a message's text and attachment into another conversation; forwarding out of a different conversation needs a confirmed second call |
 | Compose | `edit_message` | Replace the text of your own message; it shows as edited |
 | Compose | `delete_message` | Soft-delete your own message after explicit confirmation |
 | Compose | `react_to_message` | Add or remove one of six reactions |
@@ -212,15 +212,30 @@ Verb treats the application and database as the authority, not the agent.
   text is mistaken for an instruction.
 - **Bounded output:** shared result clamping keeps tool responses within a
   1,500-character budget.
-- **Deliberate writes:** `send_message` accepts text directly for a one-call
-  send, and `draft_message` then `send_message` lets the person review first.
-  Leaving or deleting a conversation and deleting a message require a second
-  call with `confirm: true` after the user agrees.
+- **Deliberate writes:** `send_message` accepts text directly for a one-call send, and `draft_message` then `send_message` lets the person review first.
+  Leaving or deleting a conversation, deleting a message, and signing out require a second call with `confirm: true` after the user agrees.
+  `forward_message` and `send_attachment` with `message_id` also need that second call when the source message lives in a different conversation than the target.
+  The first call returns a preview that names the source conversation so the user can hear where the content is coming from.
+- **Sign-out stays local:** `sign_out` ends the session in this browser only.
+  Other devices stay signed in, so one injected call cannot log the person out everywhere.
+- **Server-side fetches are pinned:** `read_link` and URL attachments resolve the host once, refuse private and cloud-metadata ranges on every redirect hop, and connect to the address that passed the check.
+  Fetched attachment bodies stream under a size cap instead of being read whole.
+- **Attachments stay in their conversation:** copying or re-sending an attachment checks that the file sits in the expected bucket and under the source conversation's folder, and file names are sanitized with an extension derived from the stored type.
 - **Sign-in stays human:** the catalog has no sign-in or sign-up tool. The
   agent cannot pick or create an account; it only acts in the session a person
   opened on the page.
 - **Lifecycle cleanup:** registration uses abort signals so tools from an old
   or signed-out session do not remain active.
+
+## Security notes
+
+The confirmation step on destructive and cross-conversation tools is an honor system.
+The first call returns a preview and asks the agent to get the user's agreement, but nothing stops an agent from calling again with `confirm: true` on its own, because the in-page confirm dialog cannot outlive the tool-call timeout.
+A server-issued one-time token tied to the preview is the planned follow-up.
+
+Two more follow-ups are known and not yet done.
+Uploaded and fetched attachments are typed by their declared content type and extension, not by sniffing the file's leading bytes.
+The URL attachment route has no per-user rate limit, so one signed-in account could ask the server to fetch many remote files in a short window.
 
 ## Screenshots
 
@@ -305,6 +320,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 If your Supabase project was set up before message editing existed, run `npx supabase db push` again.
 It applies `supabase/migrations/20260902000000_message_edit_delete.sql`, which adds `edited_at` and `deleted_at` to `messages`, relaxes the content check so a soft-deleted row may be empty, and grants authors the update policy that `edit_message` and `delete_message` rely on.
+The same migration installs a `before update` trigger that stamps `edited_at` in Postgres whenever content changes and rejects any update that clears `deleted_at`, so an edit cannot hide itself or be backdated and a deleted message cannot be restored.
 Without that migration those two tools fail with a database error and edited or deleted messages do not render.
 
 > [!IMPORTANT]
