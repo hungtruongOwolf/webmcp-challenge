@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/images/logo-mark.svg" alt="Verb logo" height="88" />
+  <img src="public/images/logo-mark.svg" alt="Verb logo" width="88" height="88" />
 
 # Verb
 
