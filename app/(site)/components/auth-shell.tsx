@@ -58,8 +58,8 @@ function ShellInner({
           <img
             src={theme === "dark" ? "/images/logo-mark-dark.svg" : "/images/logo-mark.svg"}
             alt=""
-            height={44}
-            width={44}
+            height={64}
+            width={64}
           />
           <h1
             {...(titleIsFocusTarget
