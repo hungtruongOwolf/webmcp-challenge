@@ -12,7 +12,7 @@ send, react, and navigate without making the agent guess where to click.
 
 [Open the live app](https://verb-webmcp.vercel.app) ·
 [View the public repository](https://github.com/hungtruongOwolf/webmcp-challenge) ·
-**Demo video: coming soon**
+[Watch the demo video](https://youtu.be/Yoc_A6gPO5Y)
 
 `WebMCP` · `Next.js 15` · `React 19` · `TypeScript` · `Supabase` · `MIT`
 </div>
@@ -24,7 +24,7 @@ send, react, and navigate without making the agent guess where to click.
 | Requirement | Link or status |
 |---|---|
 | Working application | [verb-webmcp.vercel.app](https://verb-webmcp.vercel.app) |
-| Demo video | **Coming soon** — public YouTube link will be added here |
+| Demo video | [youtu.be/Yoc_A6gPO5Y](https://youtu.be/Yoc_A6gPO5Y) |
 | Public source code | [github.com/hungtruongOwolf/webmcp-challenge](https://github.com/hungtruongOwolf/webmcp-challenge) |
 | Open-source license | [MIT License](LICENSE) |
 | WebMCP implementation | [Registration lifecycle](app/webmcp/connection-provider.tsx) · [tool catalog](lib/webmcp/register.ts) |
